@@ -1,5 +1,5 @@
 use core::cmp::min;
-use std::{fs, path::Path, usize};
+use std::{fs, io::Write, path::Path, usize};
 
 use anyhow::Result;
 use log::{error, info};
@@ -57,7 +57,7 @@ impl FPGAData {
         let mut write_addr: usize = 0;
         let end_addr = self.data.len();
 
-        println!("{}", action);
+        print!("{} ", action);
 
         while write_addr < end_addr {
             let seg_len = min(256, end_addr - write_addr);
@@ -72,7 +72,12 @@ impl FPGAData {
                 err
             })?;
             write_addr += 256;
+            if (write_addr % 2560) == 0 {
+                print!(".");
+                std::io::stdout().flush()?;
+            }
         }
+        println!();
         Ok(())
     }
 
