@@ -5,7 +5,7 @@ use clap::Parser;
 use serialport::{FlowControl, SerialPort, SerialPortBuilder, SerialPortType};
 
 mod cmds;
-use crate::cmds::Cmd;
+mod dev;
 
 mod programmer;
 
@@ -53,16 +53,19 @@ fn main() -> Result<()> {
 
     let args = Args::parse();
 
-    let mut port = open_port(&args)?;
+    let port = open_port(&args)?;
+    let mut fpga = dev::Device { port };
 
     let fpga_data = programmer::FPGAData::from_path(args.input)?;
 
-    fpga_data.prepare(&mut port)?;
-    fpga_data.erase(&mut port)?;
-    fpga_data.program(&mut port)?;
+    fpga.prepare()?;
+
+    fpga_data.erase(&mut fpga)?;
+    fpga_data.program(&mut fpga)?;
     if !args.skip_verification {
-        fpga_data.verify(&mut port)?;
+        fpga_data.verify(&mut fpga)?;
     }
-    cmds::ReleaseFPGA::send(&mut port, ())?;
+
+    fpga.release_fpga()?;
     Ok(())
 }

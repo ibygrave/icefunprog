@@ -2,11 +2,9 @@ use core::cmp::min;
 use std::{fs, io::Write, path::Path, usize};
 
 use anyhow::Result;
-use log::{error, info};
-use serialport::SerialPort;
 
 use crate::cmds;
-use crate::cmds::Cmd;
+use crate::dev;
 
 pub struct FPGAData {
     pub data: Vec<u8>,
@@ -30,30 +28,15 @@ impl FPGAData {
         })
     }
 
-    pub fn prepare(&self, port: &mut Box<dyn SerialPort>) -> Result<()> {
-        let ver = cmds::GetVer::send(port, ())?;
-        info!("iceFUN v{}", ver.0);
-        let reset_reply = cmds::ResetFPGA::send(port, ())?;
-        info!(
-            "Flash ID {:#02x} {:#02x} {:#02x}",
-            reset_reply.0[0], reset_reply.0[1], reset_reply.0[2]
-        );
-        Ok(())
-    }
-
-    pub fn erase(&self, port: &mut Box<dyn SerialPort>) -> Result<()> {
+    pub fn erase(&self, fpga: &mut dev::Device) -> Result<()> {
         for page in self.start_page..=self.end_page {
             println!("Erasing sector {:#02x}0000", page);
-            cmds::Erase64K::send(port, cmds::ErasePage(page))?;
+            fpga.erase64k(page)?;
         }
         Ok(())
     }
 
-    fn do_pages<T: cmds::Cmd<Args = cmds::ProgData>>(
-        &self,
-        port: &mut Box<dyn SerialPort>,
-        action: &str,
-    ) -> Result<()> {
+    fn do_pages(&self, fpga: &mut dev::Device, cmd: u8, action: &str) -> Result<()> {
         let mut write_addr: usize = 0;
         let end_addr = self.data.len();
 
@@ -67,10 +50,7 @@ impl FPGAData {
                 addr: write_addr,
                 data: data_seg,
             };
-            T::send(port, prog_data).map_err(|err| {
-                error!("{} failed at {:#08x}", action, write_addr);
-                err
-            })?;
+            fpga.program_page(cmd, prog_data)?;
             write_addr += 256;
             if (write_addr % 2560) == 0 {
                 print!(".");
@@ -81,11 +61,11 @@ impl FPGAData {
         Ok(())
     }
 
-    pub fn program(&self, port: &mut Box<dyn SerialPort>) -> Result<()> {
-        self.do_pages::<cmds::ProgPage>(port, "Programming")
+    pub fn program(&self, fpga: &mut dev::Device) -> Result<()> {
+        self.do_pages(fpga, cmds::CMD_PROGRAM_PAGE, "Programming")
     }
 
-    pub fn verify(&self, port: &mut Box<dyn SerialPort>) -> Result<()> {
-        self.do_pages::<cmds::VerifyPage>(port, "Verifying")
+    pub fn verify(&self, fpga: &mut dev::Device) -> Result<()> {
+        self.do_pages(fpga, cmds::CMD_VERIFY_PAGE, "Verifying")
     }
 }
