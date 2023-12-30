@@ -54,15 +54,12 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     let port = open_port(&args)?;
-    let fpga = dev::Device { port };
-
     let fpga_data = programmer::FPGAData::from_path(args.input)?;
-
-    let mut fpga_in_reset = fpga.prepare()?;
-    fpga_data.erase(&mut fpga_in_reset)?;
-    fpga_data.program(&mut fpga_in_reset)?;
+    let mut fpga = dev::Device { port }.prepare()?;
+    fpga_data.erase(&mut fpga)?;
+    fpga_data.program(&mut fpga)?;
     if !args.skip_verification {
-        fpga_data.verify(&mut fpga_in_reset)?;
+        fpga_data.verify(&mut fpga)?;
     }
 
     Ok(())

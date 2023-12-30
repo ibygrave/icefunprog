@@ -14,10 +14,10 @@ impl Device {
         cmd: u8,
         args: ARG,
     ) -> Result<REPLY> {
+        self.port.clear(serialport::ClearBuffer::All)?;
         self.port.write_all(&[cmd])?;
         args.send_args(&mut self.port)?;
         let reply = REPLY::receive_reply(&mut self.port)?;
-        self.port.clear(serialport::ClearBuffer::All)?;
         Ok(reply)
     }
 
