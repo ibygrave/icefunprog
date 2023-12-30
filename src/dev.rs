@@ -25,30 +25,37 @@ impl Device {
         self.send_cmd(cmds::CMD_GET_VER, ())
     }
 
-    pub fn reset_fpga(&mut self) -> Result<[u8; 3]> {
-        self.send_cmd(cmds::CMD_RESET, ())
+    pub fn reset_fpga(mut self) -> Result<([u8; 3], DeviceInReset)> {
+        let ver = self.send_cmd(cmds::CMD_RESET, ())?;
+        Ok((ver, DeviceInReset(self)))
     }
 
-    pub fn prepare(&mut self) -> Result<()> {
+    pub fn prepare(mut self) -> Result<DeviceInReset> {
         let ver = self.getver()?;
         info!("iceFUN v{}", ver.0);
-        let reset_reply = self.reset_fpga()?;
+        let (reset_reply, dev_in_reset) = self.reset_fpga()?;
         info!(
             "Flash ID {:#02x} {:#02x} {:#02x}",
             reset_reply[0], reset_reply[1], reset_reply[2]
         );
-        Ok(())
+        Ok(dev_in_reset)
     }
+}
 
+pub struct DeviceInReset(Device);
+
+impl DeviceInReset {
     pub fn erase64k(&mut self, page: u8) -> Result<()> {
-        self.send_cmd(cmds::CMD_ERASE_64K, [page])
+        self.0.send_cmd(cmds::CMD_ERASE_64K, [page])
     }
 
     pub fn program_page(&mut self, cmd: u8, args: cmds::ProgData) -> Result<cmds::ProgResult> {
-        self.send_cmd(cmd, args)
+        self.0.send_cmd(cmd, args)
     }
+}
 
-    pub fn release_fpga(&mut self) -> Result<()> {
-        self.send_cmd(cmds::CMD_RELEASE_FPGA, ())
+impl Drop for DeviceInReset {
+    fn drop(&mut self) {
+        self.0.send_cmd::<(), ()>(cmds::CMD_RELEASE_FPGA, ()).ok();
     }
 }

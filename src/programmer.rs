@@ -27,7 +27,7 @@ impl FPGAData {
         })
     }
 
-    pub fn erase(&self, fpga: &mut dev::Device) -> Result<()> {
+    pub fn erase(&self, fpga: &mut dev::DeviceInReset) -> Result<()> {
         for page in self.start_page..=self.end_page {
             println!("Erasing sector {:#02x}0000", page);
             fpga.erase64k(page)?;
@@ -35,7 +35,7 @@ impl FPGAData {
         Ok(())
     }
 
-    fn do_pages(&self, fpga: &mut dev::Device, cmd: u8, action: &str) -> Result<()> {
+    fn do_pages(&self, fpga: &mut dev::DeviceInReset, cmd: u8, action: &str) -> Result<()> {
         let mut write_addr: usize = 0;
         let end_addr = self.data.len();
 
@@ -57,11 +57,11 @@ impl FPGAData {
         Ok(())
     }
 
-    pub fn program(&self, fpga: &mut dev::Device) -> Result<()> {
+    pub fn program(&self, fpga: &mut dev::DeviceInReset) -> Result<()> {
         self.do_pages(fpga, cmds::CMD_PROGRAM_PAGE, "Programming")
     }
 
-    pub fn verify(&self, fpga: &mut dev::Device) -> Result<()> {
+    pub fn verify(&self, fpga: &mut dev::DeviceInReset) -> Result<()> {
         self.do_pages(fpga, cmds::CMD_VERIFY_PAGE, "Verifying")
     }
 }
