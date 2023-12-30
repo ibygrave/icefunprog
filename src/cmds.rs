@@ -50,16 +50,24 @@ impl<const LEN: usize> CmdReply for [u8; LEN] {
     }
 }
 
-pub struct ProgData {
+pub struct ProgData<'a> {
     pub addr: usize,
-    pub data: [u8; 256],
+    pub data: &'a [u8],
 }
 
-impl CmdArgs for ProgData {
+impl CmdArgs for ProgData<'_> {
     fn send_args(&self, writer: &mut dyn std::io::Write) -> Result<()> {
         let addr_bytes = self.addr.to_be_bytes();
         writer.write_all(&addr_bytes[5..])?;
-        writer.write_all(&self.data)?;
+        let (data_seg, pad_len) = if self.data.len() > 256 {
+            (&self.data[..256], 0)
+        } else {
+            (self.data, (256 - self.data.len()))
+        };
+        writer.write_all(data_seg)?;
+        if pad_len > 0 {
+            writer.write_all(&vec![0u8; pad_len])?;
+        }
         Ok(())
     }
 }

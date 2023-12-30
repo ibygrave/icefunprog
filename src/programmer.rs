@@ -1,4 +1,3 @@
-use core::cmp::min;
 use std::{fs, io::Write, path::Path, usize};
 
 use anyhow::Result;
@@ -43,12 +42,9 @@ impl FPGAData {
         print!("{} ", action);
 
         while write_addr < end_addr {
-            let seg_len = min(256, end_addr - write_addr);
-            let mut data_seg = [0u8; 256];
-            data_seg[..seg_len].clone_from_slice(&self.data[write_addr..(write_addr + seg_len)]);
             let prog_data = cmds::ProgData {
                 addr: write_addr,
-                data: data_seg,
+                data: &self.data[write_addr..],
             };
             fpga.program_page(cmd, prog_data)?;
             write_addr += 256;
