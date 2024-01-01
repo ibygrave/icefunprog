@@ -1,9 +1,8 @@
 use std::{fs, io::Write, path::Path, usize};
 
-use anyhow::Result;
-
 use crate::cmds;
 use crate::dev;
+use crate::err::Error;
 
 pub struct FPGAData {
     pub data: Vec<u8>,
@@ -12,7 +11,7 @@ pub struct FPGAData {
 }
 
 impl FPGAData {
-    pub fn from_path<P>(path: P) -> Result<Self>
+    pub fn from_path<P>(path: P) -> Result<Self, Error>
     where
         P: AsRef<Path>,
     {
@@ -27,7 +26,7 @@ impl FPGAData {
         })
     }
 
-    pub fn erase(&self, fpga: &mut dev::DeviceInReset) -> Result<()> {
+    pub fn erase(&self, fpga: &mut dev::DeviceInReset) -> Result<(), Error> {
         for page in self.start_page..=self.end_page {
             println!("Erasing sector {:#02x}0000", page);
             fpga.erase64k(page)?;
@@ -35,7 +34,7 @@ impl FPGAData {
         Ok(())
     }
 
-    fn do_pages(&self, fpga: &mut dev::DeviceInReset, cmd: u8, action: &str) -> Result<()> {
+    fn do_pages(&self, fpga: &mut dev::DeviceInReset, cmd: u8, action: &str) -> Result<(), Error> {
         let mut write_addr: usize = 0;
         let end_addr = self.data.len();
 
@@ -57,11 +56,11 @@ impl FPGAData {
         Ok(())
     }
 
-    pub fn program(&self, fpga: &mut dev::DeviceInReset) -> Result<()> {
+    pub fn program(&self, fpga: &mut dev::DeviceInReset) -> Result<(), Error> {
         self.do_pages(fpga, cmds::CMD_PROGRAM_PAGE, "Programming")
     }
 
-    pub fn verify(&self, fpga: &mut dev::DeviceInReset) -> Result<()> {
+    pub fn verify(&self, fpga: &mut dev::DeviceInReset) -> Result<(), Error> {
         self.do_pages(fpga, cmds::CMD_VERIFY_PAGE, "Verifying")
     }
 }

@@ -1,8 +1,8 @@
-use anyhow::Result;
 use log::info;
 use serialport::SerialPort;
 
 use crate::cmds;
+use crate::err::Error;
 
 pub struct Device {
     pub port: Box<dyn SerialPort>,
@@ -13,7 +13,7 @@ impl Device {
         &mut self,
         cmd: u8,
         args: ARG,
-    ) -> Result<REPLY> {
+    ) -> Result<REPLY, Error> {
         self.port.clear(serialport::ClearBuffer::All)?;
         self.port.write_all(&[cmd])?;
         args.send_args(&mut self.port)?;
@@ -21,16 +21,16 @@ impl Device {
         Ok(reply)
     }
 
-    pub fn getver(&mut self) -> Result<cmds::GetVerReply> {
+    pub fn getver(&mut self) -> Result<cmds::GetVerReply, Error> {
         self.send_cmd(cmds::CMD_GET_VER, ())
     }
 
-    pub fn reset_fpga(mut self) -> Result<([u8; 3], DeviceInReset)> {
+    pub fn reset_fpga(mut self) -> Result<([u8; 3], DeviceInReset), Error> {
         let ver = self.send_cmd(cmds::CMD_RESET, ())?;
         Ok((ver, DeviceInReset(self)))
     }
 
-    pub fn prepare(mut self) -> Result<DeviceInReset> {
+    pub fn prepare(mut self) -> Result<DeviceInReset, Error> {
         let ver = self.getver()?;
         info!("iceFUN v{}", ver.0);
         let (reset_reply, dev_in_reset) = self.reset_fpga()?;
@@ -45,11 +45,15 @@ impl Device {
 pub struct DeviceInReset(Device);
 
 impl DeviceInReset {
-    pub fn erase64k(&mut self, page: u8) -> Result<()> {
+    pub fn erase64k(&mut self, page: u8) -> Result<(), Error> {
         self.0.send_cmd(cmds::CMD_ERASE_64K, [page])
     }
 
-    pub fn program_page(&mut self, cmd: u8, args: cmds::ProgData) -> Result<cmds::ProgResult> {
+    pub fn program_page(
+        &mut self,
+        cmd: u8,
+        args: cmds::ProgData,
+    ) -> Result<cmds::ProgResult, Error> {
         self.0.send_cmd(cmd, args)
     }
 }
