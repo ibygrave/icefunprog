@@ -1,0 +1,8 @@
+[package]
+name = "icefun"
+version = "0.3.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4"
+serialport = "4.3"
