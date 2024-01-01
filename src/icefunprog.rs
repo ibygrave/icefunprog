@@ -4,11 +4,6 @@ use anyhow::Result;
 use clap::Parser;
 use serialport::{FlowControl, SerialPort, SerialPortBuilder, SerialPortType};
 
-mod cmds;
-mod dev;
-
-mod programmer;
-
 /// Programming tool for Devantech iceFUN board.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -54,8 +49,8 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     let port = open_port(&args)?;
-    let fpga_data = programmer::FPGAData::from_path(args.input)?;
-    let mut fpga = dev::Device { port }.prepare()?;
+    let fpga_data = icefun::FPGAData::from_path(args.input)?;
+    let mut fpga = icefun::Device { port }.prepare()?;
     fpga_data.erase(&mut fpga)?;
     fpga_data.program(&mut fpga)?;
     if !args.skip_verification {

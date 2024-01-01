@@ -1,7 +1,15 @@
 [package]
 name = "icefunprog"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+
+[[bin]]
+name = "icefunprog"
+path = "src/icefunprog.rs"
+
+[lib]
+name = "icefun"
+path = "src/lib/lib.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
