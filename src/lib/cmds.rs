@@ -82,7 +82,7 @@ impl CmdReply for GetVerReply {
         if buf[0] == 38 {
             Ok(GetVerReply(buf[1]))
         } else {
-            Err(Error::CmdError("Error getting version".into()))
+            Err(Error::Cmd("Error getting version".into()))
         }
     }
 }
@@ -98,13 +98,10 @@ impl CmdReply for ProgResult {
         } else {
             let mut err_data = [0u8; 3];
             reader.read_exact(&mut err_data)?;
-            Err(Error::CmdError(
-                format!(
-                    "prog rc {:#02x} at page + {:#02x}, {:#02x} expected, {:#02x} read.",
-                    rc[0], err_data[0], err_data[1], err_data[2]
-                )
-                .into(),
-            ))
+            Err(Error::Cmd(format!(
+                "prog rc {:#02x} at page + {:#02x}, {:#02x} expected, {:#02x} read.",
+                rc[0], err_data[0], err_data[1], err_data[2]
+            )))
         }
     }
 }
