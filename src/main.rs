@@ -12,13 +12,17 @@ struct Args {
     #[arg(short, long)]
     port: Option<String>,
 
-    // Skip verification
+    /// Skip verification
     #[arg(short = 'v', long)]
     skip_verification: bool,
 
     /// Input file to program
     #[arg(value_name = "INPUT")]
     input: PathBuf,
+
+    /// Logging level. `Off` for silent operation.
+    #[arg(short, long, default_value = "Info")]
+    log_level: log::LevelFilter,
 }
 
 fn find_port(args: &Args) -> Result<SerialPortBuilder> {
@@ -44,9 +48,8 @@ fn open_port(args: &Args) -> Result<Box<dyn SerialPort>> {
 }
 
 fn main() -> Result<()> {
-    env_logger::init();
-
     let args = Args::parse();
+    env_logger::builder().filter_level(args.log_level).init();
 
     let port = open_port(&args)?;
     let fpga_data = icefun::FPGAData::from_path(args.input)?;

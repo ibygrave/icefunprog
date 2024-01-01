@@ -1,4 +1,6 @@
-use std::{fs, io::Write, path::Path, usize};
+use std::{fs, path::Path, usize};
+
+use log::info;
 
 use crate::cmds;
 use crate::dev;
@@ -28,7 +30,7 @@ impl FPGAData {
 
     pub fn erase(&self, fpga: &mut dev::DeviceInReset) -> Result<(), Error> {
         for page in self.start_page..=self.end_page {
-            println!("Erasing sector {:#02x}0000", page);
+            info!("Erasing sector {:#02x}0000", page);
             fpga.erase64k(page)?;
         }
         Ok(())
@@ -38,7 +40,11 @@ impl FPGAData {
         let mut write_addr: usize = 0;
         let end_addr = self.data.len();
 
-        print!("{} ", action);
+        let progress = |addr: usize| {
+            info!("{} {}% ", action, (100 * addr) / end_addr);
+        };
+
+        progress(0);
 
         while write_addr < end_addr {
             let prog_data = cmds::ProgData {
@@ -47,12 +53,11 @@ impl FPGAData {
             };
             fpga.program_page(cmd, prog_data)?;
             write_addr += 256;
-            if (write_addr % 2560) == 0 {
-                print!(".");
-                std::io::stdout().flush()?;
+            if (write_addr % 10240) == 0 {
+                progress(write_addr);
             }
         }
-        println!();
+        progress(end_addr);
         Ok(())
     }
 
