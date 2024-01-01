@@ -1,5 +1,3 @@
-use log::debug;
-
 use crate::err::Error;
 
 pub const CMD_GET_VER: u8 = 0xb1;
@@ -46,7 +44,6 @@ impl<const LEN: usize> CmdReply for [u8; LEN] {
     fn receive_reply(reader: &mut dyn std::io::Read) -> Result<Self, Error> {
         let mut buf = [0u8; LEN];
         reader.read_exact(&mut buf)?;
-        debug!("Reply bytes {:?}", buf);
         Ok(buf)
     }
 }

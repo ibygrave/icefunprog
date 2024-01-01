@@ -1,4 +1,6 @@
-use log::info;
+use std::io::{BufRead, BufReader};
+
+use log::{debug, info, trace};
 use serialport::SerialPort;
 
 use crate::cmds;
@@ -14,10 +16,23 @@ impl Device {
         cmd: u8,
         args: ARG,
     ) -> Result<REPLY, Error> {
-        self.port.clear(serialport::ClearBuffer::All)?;
         self.port.write_all(&[cmd])?;
-        args.send_args(&mut self.port)?;
-        let reply = REPLY::receive_reply(&mut self.port)?;
+        if log::log_enabled!(log::Level::Trace) {
+            let mut arg_buf: Vec<u8> = vec![];
+            args.send_args(&mut arg_buf)?;
+            trace!("Send command: {:02x} {:02x?}", cmd, arg_buf);
+            self.port.write_all(&arg_buf)?;
+        } else {
+            args.send_args(&mut self.port)?;
+        }
+        let mut reader = BufReader::new(&mut self.port);
+        let data = reader.fill_buf()?;
+        trace!("Receive reply: {:02x?}", data);
+        let reply = REPLY::receive_reply(&mut reader)?;
+        let remain = reader.buffer();
+        if !remain.is_empty() {
+            debug!("Unread reply: {:02x?}", remain);
+        }
         Ok(reply)
     }
 
