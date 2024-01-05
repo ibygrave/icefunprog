@@ -41,7 +41,7 @@ where
         Ok(reply)
     }
 
-    pub fn getver(&mut self) -> Result<cmds::GetVerReply, Error> {
+    fn getver(&mut self) -> Result<cmds::GetVerReply, Error> {
         self.send_cmd(cmds::CMD_GET_VER, ())
     }
 
@@ -74,7 +74,7 @@ where
         self.0.send_cmd(cmds::CMD_ERASE_64K, [page])
     }
 
-    pub fn program_page(
+    pub(crate) fn program_page(
         &mut self,
         cmd: u8,
         args: cmds::ProgData,

@@ -1,13 +1,13 @@
 use crate::err::Error;
 
-pub const CMD_GET_VER: u8 = 0xb1;
-pub const CMD_RESET: u8 = 0xb2;
-pub const CMD_ERASE_64K: u8 = 0xb4;
-pub const CMD_PROGRAM_PAGE: u8 = 0xb5;
-pub const CMD_VERIFY_PAGE: u8 = 0xb7;
-pub const CMD_RELEASE_FPGA: u8 = 0xb9;
+pub(crate) const CMD_GET_VER: u8 = 0xb1;
+pub(crate) const CMD_RESET: u8 = 0xb2;
+pub(crate) const CMD_ERASE_64K: u8 = 0xb4;
+pub(crate) const CMD_PROGRAM_PAGE: u8 = 0xb5;
+pub(crate) const CMD_VERIFY_PAGE: u8 = 0xb7;
+pub(crate) const CMD_RELEASE_FPGA: u8 = 0xb9;
 
-pub trait CmdArgs {
+pub(crate) trait CmdArgs {
     fn send_args(&self, writer: &mut dyn std::io::Write) -> Result<(), Error>;
 }
 
@@ -25,7 +25,7 @@ impl<const LEN: usize> CmdArgs for [u8; LEN] {
     }
 }
 
-pub trait CmdReply
+pub(crate) trait CmdReply
 where
     Self: Sized,
 {
@@ -48,7 +48,7 @@ impl<const LEN: usize> CmdReply for [u8; LEN] {
     }
 }
 
-pub struct ProgData<'a> {
+pub(crate) struct ProgData<'a> {
     pub addr: usize,
     pub data: &'a [u8],
 }
@@ -70,7 +70,7 @@ impl CmdArgs for ProgData<'_> {
     }
 }
 
-pub struct GetVerReply(pub u8);
+pub(crate) struct GetVerReply(pub u8);
 
 impl CmdReply for GetVerReply {
     fn receive_reply(reader: &mut dyn std::io::Read) -> Result<Self, Error> {
@@ -84,7 +84,7 @@ impl CmdReply for GetVerReply {
     }
 }
 
-pub struct ProgResult;
+pub(crate) struct ProgResult;
 
 impl CmdReply for ProgResult {
     fn receive_reply(reader: &mut dyn std::io::Read) -> Result<Self, Error> {
