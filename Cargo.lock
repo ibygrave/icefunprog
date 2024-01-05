@@ -181,7 +181,6 @@ name = "icefun"
 version = "0.3.0"
 dependencies = [
  "log",
- "serialport",
 ]
 
 [[package]]

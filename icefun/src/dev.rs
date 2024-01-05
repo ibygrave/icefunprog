@@ -1,16 +1,21 @@
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read, Write};
 
 use log::{debug, info, trace};
-use serialport::SerialPort;
 
 use crate::cmds;
 use crate::err::Error;
 
-pub struct Device {
-    pub port: Box<dyn SerialPort>,
+pub struct Device<PORT>
+where
+    PORT: Read + Write,
+{
+    pub port: PORT,
 }
 
-impl Device {
+impl<PORT> Device<PORT>
+where
+    PORT: Read + Write,
+{
     fn send_cmd<ARG: cmds::CmdArgs, REPLY: cmds::CmdReply>(
         &mut self,
         cmd: u8,
@@ -40,12 +45,12 @@ impl Device {
         self.send_cmd(cmds::CMD_GET_VER, ())
     }
 
-    pub fn reset_fpga(mut self) -> Result<([u8; 3], DeviceInReset), Error> {
+    pub fn reset_fpga(mut self) -> Result<([u8; 3], DeviceInReset<PORT>), Error> {
         let ver = self.send_cmd(cmds::CMD_RESET, ())?;
         Ok((ver, DeviceInReset(self)))
     }
 
-    pub fn prepare(mut self) -> Result<DeviceInReset, Error> {
+    pub fn prepare(mut self) -> Result<DeviceInReset<PORT>, Error> {
         let ver = self.getver()?;
         info!("iceFUN v{}", ver.0);
         let (reset_reply, dev_in_reset) = self.reset_fpga()?;
@@ -57,9 +62,14 @@ impl Device {
     }
 }
 
-pub struct DeviceInReset(Device);
+pub struct DeviceInReset<PORT>(Device<PORT>)
+where
+    PORT: Read + Write;
 
-impl DeviceInReset {
+impl<PORT> DeviceInReset<PORT>
+where
+    PORT: Read + Write,
+{
     pub fn erase64k(&mut self, page: u8) -> Result<(), Error> {
         self.0.send_cmd(cmds::CMD_ERASE_64K, [page])
     }
@@ -73,7 +83,10 @@ impl DeviceInReset {
     }
 }
 
-impl Drop for DeviceInReset {
+impl<PORT> Drop for DeviceInReset<PORT>
+where
+    PORT: Read + Write,
+{
     fn drop(&mut self) {
         self.0.send_cmd::<(), ()>(cmds::CMD_RELEASE_FPGA, ()).ok();
     }

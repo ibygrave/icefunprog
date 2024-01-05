@@ -52,7 +52,7 @@ fn main() -> Result<()> {
     env_logger::builder().filter_level(args.log_level).init();
 
     let port = open_port(&args)?;
-    let fpga_data = icefun::FPGAData::from_path(args.input)?;
+    let fpga_data = icefun::FPGAData::<Box<dyn SerialPort>>::from_path(args.input)?;
     let mut fpga = icefun::Device { port }.prepare()?;
     fpga_data.erase(&mut fpga)?;
     fpga_data.program(&mut fpga)?;
