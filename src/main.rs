@@ -40,8 +40,8 @@ fn find_port(args: &Args) -> Result<SerialPortBuilder> {
     }
 }
 
-fn open_port(args: &Args) -> Result<Box<dyn SerialPort>> {
-    let mut port = find_port(args)?.open()?;
+fn open_port(args: &Args) -> Result<impl SerialPort> {
+    let mut port = find_port(args)?.open_native()?;
     port.set_flow_control(FlowControl::None)?;
     port.set_timeout(Duration::from_secs(10))?;
     Ok(port)
@@ -52,7 +52,7 @@ fn main() -> Result<()> {
     env_logger::builder().filter_level(args.log_level).init();
 
     let port = open_port(&args)?;
-    let fpga_data = icefun::FPGAData::<Box<dyn SerialPort>>::from_path(args.input)?;
+    let fpga_data = icefun::FPGAData::from_path(args.input)?;
     let mut fpga = icefun::Device { port }.prepare()?;
     fpga_data.erase(&mut fpga)?;
     fpga_data.program(&mut fpga)?;
