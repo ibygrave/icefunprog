@@ -1,3 +1,5 @@
+use std::io::{Read, Write};
+
 use crate::err::Error;
 
 pub(crate) const CMD_GET_VER: u8 = 0xb1;
@@ -8,18 +10,18 @@ pub(crate) const CMD_VERIFY_PAGE: u8 = 0xb7;
 pub(crate) const CMD_RELEASE_FPGA: u8 = 0xb9;
 
 pub(crate) trait CmdArgs {
-    fn send_args(&self, writer: &mut dyn std::io::Write) -> Result<(), Error>;
+    fn send_args(&self, writer: &mut impl Write) -> Result<(), Error>;
 }
 
 impl CmdArgs for () {
-    fn send_args(&self, _writer: &mut dyn std::io::Write) -> Result<(), Error> {
+    fn send_args(&self, _writer: &mut impl Write) -> Result<(), Error> {
         // Sends zero bytes
         Ok(())
     }
 }
 
 impl<const LEN: usize> CmdArgs for [u8; LEN] {
-    fn send_args(&self, writer: &mut dyn std::io::Write) -> Result<(), Error> {
+    fn send_args(&self, writer: &mut impl Write) -> Result<(), Error> {
         writer.write_all(self)?;
         Ok(())
     }
@@ -29,11 +31,11 @@ pub(crate) trait CmdReply
 where
     Self: Sized,
 {
-    fn receive_reply(reader: &mut dyn std::io::Read) -> Result<Self, Error>;
+    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error>;
 }
 
 impl CmdReply for () {
-    fn receive_reply(reader: &mut dyn std::io::Read) -> Result<Self, Error> {
+    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {
         let mut buf = [0u8];
         reader.read_exact(&mut buf)?;
         Ok(())
@@ -41,7 +43,7 @@ impl CmdReply for () {
 }
 
 impl<const LEN: usize> CmdReply for [u8; LEN] {
-    fn receive_reply(reader: &mut dyn std::io::Read) -> Result<Self, Error> {
+    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {
         let mut buf = [0u8; LEN];
         reader.read_exact(&mut buf)?;
         Ok(buf)
@@ -54,7 +56,7 @@ pub(crate) struct ProgData<'a> {
 }
 
 impl CmdArgs for ProgData<'_> {
-    fn send_args(&self, writer: &mut dyn std::io::Write) -> Result<(), Error> {
+    fn send_args(&self, writer: &mut impl Write) -> Result<(), Error> {
         let addr_bytes = self.addr.to_be_bytes();
         writer.write_all(&addr_bytes[5..])?;
         let (data_seg, pad_len) = if self.data.len() > 256 {
@@ -73,7 +75,7 @@ impl CmdArgs for ProgData<'_> {
 pub(crate) struct GetVerReply(pub u8);
 
 impl CmdReply for GetVerReply {
-    fn receive_reply(reader: &mut dyn std::io::Read) -> Result<Self, Error> {
+    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {
         let mut buf = [0u8; 2];
         reader.read_exact(&mut buf)?;
         if buf[0] == 38 {
@@ -87,7 +89,7 @@ impl CmdReply for GetVerReply {
 pub(crate) struct ProgResult;
 
 impl CmdReply for ProgResult {
-    fn receive_reply(reader: &mut dyn std::io::Read) -> Result<Self, Error> {
+    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {
         let mut rc = [0u8];
         reader.read_exact(&mut rc)?;
         if rc[0] == 0 {
