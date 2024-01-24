@@ -62,23 +62,24 @@ where
     }
 }
 
+pub trait Programmable {
+    fn erase64k(&mut self, page: u8) -> Result<(), Error>;
+    fn program_page(&mut self, cmd: u8, args: cmds::ProgData) -> Result<cmds::ProgResult, Error>;
+}
+
 pub struct DeviceInReset<PORT>(Device<PORT>)
 where
     PORT: Read + Write;
 
-impl<PORT> DeviceInReset<PORT>
+impl<PORT> Programmable for DeviceInReset<PORT>
 where
     PORT: Read + Write,
 {
-    pub fn erase64k(&mut self, page: u8) -> Result<(), Error> {
+    fn erase64k(&mut self, page: u8) -> Result<(), Error> {
         self.0.send_cmd(cmds::CMD_ERASE_64K, [page])
     }
 
-    pub(crate) fn program_page(
-        &mut self,
-        cmd: u8,
-        args: cmds::ProgData,
-    ) -> Result<cmds::ProgResult, Error> {
+    fn program_page(&mut self, cmd: u8, args: cmds::ProgData) -> Result<cmds::ProgResult, Error> {
         self.0.send_cmd(cmd, args)
     }
 }

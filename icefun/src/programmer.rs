@@ -1,27 +1,18 @@
-use std::io::{Read, Write};
-use std::marker::PhantomData;
 use std::{fs, path::Path, usize};
 
 use log::info;
 
 use crate::cmds;
-use crate::dev;
+use crate::dev::Programmable;
 use crate::err::Error;
 
-pub struct FPGAData<PORT>
-where
-    PORT: Read + Write,
-{
+pub struct FPGAData {
     pub data: Vec<u8>,
     pub start_page: u8,
     pub end_page: u8,
-    _port: PhantomData<PORT>,
 }
 
-impl<PORT> FPGAData<PORT>
-where
-    PORT: Read + Write,
-{
+impl FPGAData {
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self, Error> {
         let data = fs::read(path)?;
         let length = data.len();
@@ -31,11 +22,10 @@ where
             data,
             start_page,
             end_page,
-            _port: PhantomData,
         })
     }
 
-    pub fn erase(&self, fpga: &mut dev::DeviceInReset<PORT>) -> Result<(), Error> {
+    pub fn erase(&self, fpga: &mut impl Programmable) -> Result<(), Error> {
         for page in self.start_page..=self.end_page {
             info!("Erasing sector {:#02x}0000", page);
             fpga.erase64k(page)?;
@@ -43,12 +33,7 @@ where
         Ok(())
     }
 
-    fn do_pages(
-        &self,
-        fpga: &mut dev::DeviceInReset<PORT>,
-        cmd: u8,
-        action: &str,
-    ) -> Result<(), Error> {
+    fn do_pages(&self, fpga: &mut impl Programmable, cmd: u8, action: &str) -> Result<(), Error> {
         let mut write_addr: usize = 0;
         let end_addr = self.data.len();
 
@@ -73,11 +58,11 @@ where
         Ok(())
     }
 
-    pub fn program(&self, fpga: &mut dev::DeviceInReset<PORT>) -> Result<(), Error> {
+    pub fn program(&self, fpga: &mut impl Programmable) -> Result<(), Error> {
         self.do_pages(fpga, cmds::CMD_PROGRAM_PAGE, "Programming")
     }
 
-    pub fn verify(&self, fpga: &mut dev::DeviceInReset<PORT>) -> Result<(), Error> {
+    pub fn verify(&self, fpga: &mut impl Programmable) -> Result<(), Error> {
         self.do_pages(fpga, cmds::CMD_VERIFY_PAGE, "Verifying")
     }
 }
