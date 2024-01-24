@@ -1,3 +1,4 @@
+use std::io::{Read, Write};
 use std::marker::PhantomData;
 use std::{fs, path::Path, usize};
 
@@ -9,7 +10,7 @@ use crate::err::Error;
 
 pub struct FPGAData<PORT>
 where
-    PORT: std::io::Read + std::io::Write,
+    PORT: Read + Write,
 {
     pub data: Vec<u8>,
     pub start_page: u8,
@@ -19,12 +20,9 @@ where
 
 impl<PORT> FPGAData<PORT>
 where
-    PORT: std::io::Read + std::io::Write,
+    PORT: Read + Write,
 {
-    pub fn from_path<P>(path: P) -> Result<Self, Error>
-    where
-        P: AsRef<Path>,
-    {
+    pub fn from_path(path: impl AsRef<Path>) -> Result<Self, Error> {
         let data = fs::read(path)?;
         let length = data.len();
         let start_page = 0u8;
