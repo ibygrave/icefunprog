@@ -5,17 +5,11 @@ use log::{debug, info, trace};
 use crate::cmds;
 use crate::err::Error;
 
-pub struct Device<PORT>
-where
-    PORT: Read + Write,
-{
+pub struct Device<PORT: Read + Write> {
     pub port: PORT,
 }
 
-impl<PORT> Device<PORT>
-where
-    PORT: Read + Write,
-{
+impl<PORT: Read + Write> Device<PORT> {
     fn send_cmd<REPLY: cmds::CmdReply>(
         &mut self,
         cmd: u8,
@@ -67,14 +61,9 @@ pub trait Programmable {
     fn program_page(&mut self, cmd: u8, addr: usize, data: &[u8]) -> Result<(), Error>;
 }
 
-pub struct DeviceInReset<PORT>(Device<PORT>)
-where
-    PORT: Read + Write;
+pub struct DeviceInReset<PORT: Read + Write>(Device<PORT>);
 
-impl<PORT> Programmable for DeviceInReset<PORT>
-where
-    PORT: Read + Write,
-{
+impl<PORT: Read + Write> Programmable for DeviceInReset<PORT> {
     fn erase64k(&mut self, page: u8) -> Result<(), Error> {
         self.0.send_cmd(cmds::CMD_ERASE_64K, [page])
     }
@@ -85,10 +74,7 @@ where
     }
 }
 
-impl<PORT> Drop for DeviceInReset<PORT>
-where
-    PORT: Read + Write,
-{
+impl<PORT: Read + Write> Drop for DeviceInReset<PORT> {
     fn drop(&mut self) {
         self.0.send_cmd::<()>(cmds::CMD_RELEASE_FPGA, ()).ok();
     }
