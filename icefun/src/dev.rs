@@ -16,10 +16,10 @@ impl<PORT> Device<PORT>
 where
     PORT: Read + Write,
 {
-    fn send_cmd<ARG: cmds::CmdArgs, REPLY: cmds::CmdReply>(
+    fn send_cmd<REPLY: cmds::CmdReply>(
         &mut self,
         cmd: u8,
-        args: ARG,
+        args: impl cmds::CmdArgs,
     ) -> Result<REPLY, Error> {
         self.port.write_all(&[cmd])?;
         if log::log_enabled!(log::Level::Trace) {
@@ -90,6 +90,6 @@ where
     PORT: Read + Write,
 {
     fn drop(&mut self) {
-        self.0.send_cmd::<(), ()>(cmds::CMD_RELEASE_FPGA, ()).ok();
+        self.0.send_cmd::<()>(cmds::CMD_RELEASE_FPGA, ()).ok();
     }
 }
