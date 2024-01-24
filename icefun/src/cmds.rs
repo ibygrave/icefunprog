@@ -50,7 +50,7 @@ impl<const LEN: usize> CmdReply for [u8; LEN] {
     }
 }
 
-pub struct ProgData<'a> {
+pub(crate) struct ProgData<'a> {
     pub addr: usize,
     pub data: &'a [u8],
 }
@@ -86,7 +86,7 @@ impl CmdReply for GetVerReply {
     }
 }
 
-pub struct ProgResult;
+pub(crate) struct ProgResult;
 
 impl CmdReply for ProgResult {
     fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {

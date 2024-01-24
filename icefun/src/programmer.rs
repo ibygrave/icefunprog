@@ -44,11 +44,7 @@ impl FPGAData {
         progress(0);
 
         while write_addr < end_addr {
-            let prog_data = cmds::ProgData {
-                addr: write_addr,
-                data: &self.data[write_addr..],
-            };
-            fpga.program_page(cmd, prog_data)?;
+            fpga.program_page(cmd, write_addr, &self.data[write_addr..])?;
             write_addr += 256;
             if (write_addr % 10240) == 0 {
                 progress(write_addr);

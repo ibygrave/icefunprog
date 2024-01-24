@@ -64,7 +64,7 @@ where
 
 pub trait Programmable {
     fn erase64k(&mut self, page: u8) -> Result<(), Error>;
-    fn program_page(&mut self, cmd: u8, args: cmds::ProgData) -> Result<cmds::ProgResult, Error>;
+    fn program_page(&mut self, cmd: u8, addr: usize, data: &[u8]) -> Result<(), Error>;
 }
 
 pub struct DeviceInReset<PORT>(Device<PORT>)
@@ -79,8 +79,9 @@ where
         self.0.send_cmd(cmds::CMD_ERASE_64K, [page])
     }
 
-    fn program_page(&mut self, cmd: u8, args: cmds::ProgData) -> Result<cmds::ProgResult, Error> {
-        self.0.send_cmd(cmd, args)
+    fn program_page(&mut self, cmd: u8, addr: usize, data: &[u8]) -> Result<(), Error> {
+        let _: cmds::ProgResult = self.0.send_cmd(cmd, cmds::ProgData { addr, data })?;
+        Ok(())
     }
 }
 
