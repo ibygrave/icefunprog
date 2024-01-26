@@ -1,6 +1,6 @@
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{Read, Write};
 
-use log::{debug, info, trace};
+use log::info;
 
 use crate::cmds;
 use crate::err::Error;
@@ -10,37 +10,12 @@ pub struct Device<Port: Read + Write> {
 }
 
 impl<Port: Read + Write> Device<Port> {
-    fn send_cmd<REPLY: cmds::CmdReply>(
-        &mut self,
-        cmd: u8,
-        args: impl cmds::CmdArgs,
-    ) -> Result<REPLY, Error> {
-        self.port.write_all(&[cmd])?;
-        if log::log_enabled!(log::Level::Trace) {
-            let mut arg_buf: Vec<u8> = vec![];
-            args.send_args(&mut arg_buf)?;
-            trace!("Send command: {:02x} {:02x?}", cmd, arg_buf);
-            self.port.write_all(&arg_buf)?;
-        } else {
-            args.send_args(&mut self.port)?;
-        }
-        let mut reader = BufReader::new(&mut self.port);
-        let data = reader.fill_buf()?;
-        trace!("Receive reply: {:02x?}", data);
-        let reply = REPLY::receive_reply(&mut reader)?;
-        let remain = reader.buffer();
-        if !remain.is_empty() {
-            debug!("Unread reply: {:02x?}", remain);
-        }
-        Ok(reply)
-    }
-
     fn getver(&mut self) -> Result<cmds::GetVerReply, Error> {
-        self.send_cmd(cmds::CMD_GET_VER, ())
+        cmds::CMD_GET_VER.send(&mut self.port, ())
     }
 
     pub fn reset_fpga(mut self) -> Result<([u8; 3], DeviceInReset<Port>), Error> {
-        let ver = self.send_cmd(cmds::CMD_RESET, ())?;
+        let ver = cmds::CMD_RESET.send(&mut self.port, ())?;
         Ok((ver, DeviceInReset(self)))
     }
 
@@ -66,26 +41,22 @@ pub struct DeviceInReset<Port: Read + Write>(Device<Port>);
 
 impl<Port: Read + Write> Programmable for DeviceInReset<Port> {
     fn erase64k(&mut self, page: u8) -> Result<(), Error> {
-        self.0.send_cmd(cmds::CMD_ERASE_64K, [page])
+        cmds::CMD_ERASE_64K.send(&mut self.0.port, [page])
     }
 
     fn program_page(&mut self, addr: usize, data: &[u8]) -> Result<(), Error> {
-        let _: cmds::ProgResult = self
-            .0
-            .send_cmd(cmds::CMD_PROGRAM_PAGE, cmds::ProgData { addr, data })?;
+        cmds::CMD_PROGRAM_PAGE.send(&mut self.0.port, cmds::ProgData { addr, data })?;
         Ok(())
     }
 
     fn verify_page(&mut self, addr: usize, data: &[u8]) -> Result<(), Error> {
-        let _: cmds::ProgResult = self
-            .0
-            .send_cmd(cmds::CMD_VERIFY_PAGE, cmds::ProgData { addr, data })?;
+        cmds::CMD_VERIFY_PAGE.send(&mut self.0.port, cmds::ProgData { addr, data })?;
         Ok(())
     }
 }
 
 impl<Port: Read + Write> Drop for DeviceInReset<Port> {
     fn drop(&mut self) {
-        self.0.send_cmd::<()>(cmds::CMD_RELEASE_FPGA, ()).ok();
+        cmds::CMD_RELEASE_FPGA.send(&mut self.0.port, ()).ok();
     }
 }
