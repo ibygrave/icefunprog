@@ -2,7 +2,6 @@ use std::{fs, path::Path, usize};
 
 use log::info;
 
-use crate::cmds;
 use crate::dev::Programmable;
 use crate::err::Error;
 
@@ -33,18 +32,22 @@ impl FPGAData {
         Ok(())
     }
 
-    fn do_pages(&self, fpga: &mut impl Programmable, cmd: u8, action: &str) -> Result<(), Error> {
+    fn do_pages(
+        &self,
+        action_name: &str,
+        mut action: impl FnMut(usize, &[u8]) -> Result<(), Error>,
+    ) -> Result<(), Error> {
         let mut write_addr: usize = 0;
         let end_addr = self.data.len();
 
         let progress = |addr: usize| {
-            info!("{} {}% ", action, (100 * addr) / end_addr);
+            info!("{} {}% ", action_name, (100 * addr) / end_addr);
         };
 
         progress(0);
 
         while write_addr < end_addr {
-            fpga.program_page(cmd, write_addr, &self.data[write_addr..])?;
+            action(write_addr, &self.data[write_addr..])?;
             write_addr += 256;
             if (write_addr % 10240) == 0 {
                 progress(write_addr);
@@ -55,10 +58,10 @@ impl FPGAData {
     }
 
     pub fn program(&self, fpga: &mut impl Programmable) -> Result<(), Error> {
-        self.do_pages(fpga, cmds::CMD_PROGRAM_PAGE, "Programming")
+        self.do_pages("Programming", |addr, data| fpga.program_page(addr, data))
     }
 
     pub fn verify(&self, fpga: &mut impl Programmable) -> Result<(), Error> {
-        self.do_pages(fpga, cmds::CMD_VERIFY_PAGE, "Verifying")
+        self.do_pages("Verifying", |addr, data| fpga.verify_page(addr, data))
     }
 }
