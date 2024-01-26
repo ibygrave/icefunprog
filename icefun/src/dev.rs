@@ -5,11 +5,11 @@ use log::{debug, info, trace};
 use crate::cmds;
 use crate::err::Error;
 
-pub struct Device<PORT: Read + Write> {
-    pub port: PORT,
+pub struct Device<Port: Read + Write> {
+    pub port: Port,
 }
 
-impl<PORT: Read + Write> Device<PORT> {
+impl<Port: Read + Write> Device<Port> {
     fn send_cmd<REPLY: cmds::CmdReply>(
         &mut self,
         cmd: u8,
@@ -39,12 +39,12 @@ impl<PORT: Read + Write> Device<PORT> {
         self.send_cmd(cmds::CMD_GET_VER, ())
     }
 
-    pub fn reset_fpga(mut self) -> Result<([u8; 3], DeviceInReset<PORT>), Error> {
+    pub fn reset_fpga(mut self) -> Result<([u8; 3], DeviceInReset<Port>), Error> {
         let ver = self.send_cmd(cmds::CMD_RESET, ())?;
         Ok((ver, DeviceInReset(self)))
     }
 
-    pub fn prepare(mut self) -> Result<DeviceInReset<PORT>, Error> {
+    pub fn prepare(mut self) -> Result<DeviceInReset<Port>, Error> {
         let ver = self.getver()?;
         info!("iceFUN v{}", ver.0);
         let (reset_reply, dev_in_reset) = self.reset_fpga()?;
@@ -61,9 +61,9 @@ pub trait Programmable {
     fn program_page(&mut self, cmd: u8, addr: usize, data: &[u8]) -> Result<(), Error>;
 }
 
-pub struct DeviceInReset<PORT: Read + Write>(Device<PORT>);
+pub struct DeviceInReset<Port: Read + Write>(Device<Port>);
 
-impl<PORT: Read + Write> Programmable for DeviceInReset<PORT> {
+impl<Port: Read + Write> Programmable for DeviceInReset<Port> {
     fn erase64k(&mut self, page: u8) -> Result<(), Error> {
         self.0.send_cmd(cmds::CMD_ERASE_64K, [page])
     }
@@ -74,7 +74,7 @@ impl<PORT: Read + Write> Programmable for DeviceInReset<PORT> {
     }
 }
 
-impl<PORT: Read + Write> Drop for DeviceInReset<PORT> {
+impl<Port: Read + Write> Drop for DeviceInReset<Port> {
     fn drop(&mut self) {
         self.0.send_cmd::<()>(cmds::CMD_RELEASE_FPGA, ()).ok();
     }
