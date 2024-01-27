@@ -11,6 +11,7 @@ pub(crate) const CMD_GET_VER: Command<(), GetVerReply> = Command::new(0xb1);
 pub(crate) const CMD_RESET: Command<(), [u8; 3]> = Command::new(0xb2);
 pub(crate) const CMD_ERASE_64K: Command<[u8; 1], ()> = Command::new(0xb4);
 pub(crate) const CMD_PROGRAM_PAGE: Command<ProgData, ProgResult> = Command::new(0xb5);
+pub(crate) const CMD_READ_PAGE: Command<ReadData, ReadResult> = Command::new(0xb6);
 pub(crate) const CMD_VERIFY_PAGE: Command<ProgData, ProgResult> = Command::new(0xb7);
 pub(crate) const CMD_RELEASE_FPGA: Command<(), ()> = Command::new(0xb9);
 
@@ -144,5 +145,28 @@ impl CmdReply for ProgResult {
                 rc[0], err_data[0], err_data[1], err_data[2]
             )))
         }
+    }
+}
+
+pub(crate) struct ReadData {
+    /// address in bytes
+    pub addr: usize,
+}
+
+impl CmdArgs for ReadData {
+    fn send_args(&self, writer: &mut impl Write) -> Result<(), Error> {
+        let addr_bytes = self.addr.to_be_bytes();
+        writer.write_all(&addr_bytes[5..])?;
+        Ok(())
+    }
+}
+
+pub(crate) struct ReadResult(pub [u8; 256]);
+
+impl CmdReply for ReadResult {
+    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {
+        let mut rr = ReadResult([0; 256]);
+        reader.read_exact(&mut rr.0)?;
+        Ok(rr)
     }
 }

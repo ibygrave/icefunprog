@@ -1,8 +1,10 @@
+use std::cmp::min;
+use std::fs::File;
 use std::{fs, path::Path, usize};
 
 use log::info;
 
-use crate::dev::Programmable;
+use crate::dev::{Dumpable, Programmable};
 use crate::err::Error;
 
 pub struct FPGAData {
@@ -63,5 +65,32 @@ impl FPGAData {
 
     pub fn verify(&self, fpga: &mut impl Programmable) -> Result<(), Error> {
         self.do_pages("Verifying", |addr, data| fpga.verify_page(addr, data))
+    }
+}
+
+pub struct FPGADump {
+    file: File,
+}
+
+impl FPGADump {
+    pub fn from_path(path: impl AsRef<Path>) -> Result<Self, Error> {
+        let file = std::fs::File::create(path)?;
+        Ok(Self { file })
+    }
+
+    pub fn dump(
+        &mut self,
+        fpga: &mut impl Dumpable,
+        offset: usize,
+        size: usize,
+    ) -> Result<(), Error> {
+        let mut read_addr = offset;
+        let end_addr = offset + size;
+        while read_addr < end_addr {
+            let len = min(256usize, end_addr - read_addr);
+            fpga.read_page(read_addr, len, &mut self.file)?;
+            read_addr += 256;
+        }
+        Ok(())
     }
 }

@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::Parser;
 
+#[path = "../utils.rs"]
 mod utils;
 
 use crate::utils::{open_port, parse_addr};
@@ -15,17 +16,17 @@ struct Args {
     #[arg(short, long)]
     port: Option<String>,
 
-    /// EEPROM offset (NYI)
+    /// Read offset
     #[arg(short, long, default_value = "0", value_parser = parse_addr)]
     offset: usize,
 
-    /// Skip verification
-    #[arg(short = 'v', long)]
-    skip_verification: bool,
+    /// Read size
+    #[arg(short, long, default_value = "0", value_parser = parse_addr)]
+    size: usize,
 
-    /// Input file to program
+    /// Output file
     #[arg(value_name = "INPUT")]
-    input: PathBuf,
+    output: PathBuf,
 
     /// Logging level. `Off` for silent operation.
     #[arg(short, long, default_value = "Info")]
@@ -37,13 +38,9 @@ fn main() -> Result<()> {
     env_logger::builder().filter_level(args.log_level).init();
 
     let port = open_port(&args.port)?;
-    let fpga_data = icefun::FPGAData::from_path(args.input)?;
     let mut fpga = icefun::Device { port }.prepare()?;
-    fpga_data.erase(&mut fpga)?;
-    fpga_data.program(&mut fpga)?;
-    if !args.skip_verification {
-        fpga_data.verify(&mut fpga)?;
-    }
+    let mut dumper = icefun::FPGADump::from_path(args.output)?;
+    dumper.dump(&mut fpga, args.offset, args.size)?;
 
     Ok(())
 }

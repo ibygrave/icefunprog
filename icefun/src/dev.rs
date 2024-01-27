@@ -37,7 +37,11 @@ pub trait Programmable {
     fn verify_page(&mut self, addr: usize, data: &[u8]) -> Result<(), Error>;
 }
 
-pub struct DeviceInReset<Port: Read + Write>(Device<Port>);
+pub trait Dumpable {
+    fn read_page(&mut self, addr: usize, len: usize, output: &mut impl Write) -> Result<(), Error>;
+}
+
+pub struct DeviceInReset<Port: Read + Write>(pub Device<Port>);
 
 impl<Port: Read + Write> Programmable for DeviceInReset<Port> {
     fn erase64k(&mut self, page: u8) -> Result<(), Error> {
@@ -51,6 +55,23 @@ impl<Port: Read + Write> Programmable for DeviceInReset<Port> {
 
     fn verify_page(&mut self, addr: usize, data: &[u8]) -> Result<(), Error> {
         cmds::CMD_VERIFY_PAGE.send(&mut self.0.port, cmds::ProgData { addr, data })?;
+        Ok(())
+    }
+}
+
+impl<Port: Read + Write> Dumpable for DeviceInReset<Port> {
+    fn read_page(&mut self, addr: usize, len: usize, output: &mut impl Write) -> Result<(), Error> {
+        if len > 256 {
+            return Err(Error::Dump(format!(
+                "Reading {} bytes of 256 byte page",
+                len
+            )));
+        }
+        if addr + len > (1024 * 1024) {
+            return Err(Error::Dump("Reading beyond 1MB".to_string()));
+        }
+        let data = cmds::CMD_READ_PAGE.send(&mut self.0.port, cmds::ReadData { addr })?;
+        output.write_all(&data.0[..len])?;
         Ok(())
     }
 }
