@@ -37,12 +37,12 @@ fn main() -> Result<()> {
     env_logger::builder().filter_level(args.log_level).init();
 
     let port = open_port(&args.port)?;
-    let fpga_data = icefun::FPGAData::from_path(args.input)?;
+    let mut programmer = icefun::FPGAProg::from_path(args.input)?;
     let mut fpga = icefun::Device { port }.prepare()?;
-    fpga_data.erase(&mut fpga)?;
-    fpga_data.program(&mut fpga)?;
+    programmer.erase(&mut fpga)?;
+    programmer.program(&mut fpga)?;
     if !args.skip_verification {
-        fpga_data.verify(&mut fpga)?;
+        programmer.verify(&mut fpga)?;
     }
 
     Ok(())
