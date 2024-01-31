@@ -14,26 +14,6 @@ struct Range {
     len: usize,
 }
 
-struct RangeIter<const N: usize> {
-    addr: usize,
-    end_addr: usize,
-}
-
-impl<const N: usize> Iterator for RangeIter<N> {
-    type Item = Range;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.addr >= self.end_addr {
-            None
-        } else {
-            let start = self.addr;
-            let len = min(N, self.end_addr - start);
-            self.addr += N;
-            Some(Range { start, len })
-        }
-    }
-}
-
 impl Range {
     fn sectors(&self) -> impl Iterator<Item = u8> {
         let start_sector = (self.start >> 16) as u8;
@@ -41,11 +21,16 @@ impl Range {
         start_sector..=end_sector
     }
 
-    fn pages<const N: usize>(&self) -> impl Iterator<Item = Range> {
-        RangeIter::<N> {
-            addr: self.start,
-            end_addr: self.start + self.len,
-        }
+    fn pages<const N: usize>(&self) -> impl Iterator<Item = Range> + '_ {
+        let count_pages = 1 + ((self.len - 1) / N);
+        let end_addr = self.start + self.len;
+        (0..count_pages).map(move |page| {
+            let start = self.start + (page * N);
+            Range {
+                start,
+                len: min(N, end_addr - start),
+            }
+        })
     }
 }
 
