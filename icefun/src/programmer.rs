@@ -1,6 +1,7 @@
 use std::cmp::min;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::time::{Duration, Instant};
 use std::{fs, path::Path, usize};
 
 use log::info;
@@ -14,6 +15,8 @@ struct Range {
     len: usize,
 }
 
+const REPORT_PERIOD: Duration = Duration::from_secs(1);
+
 impl Range {
     fn sectors(&self) -> impl Iterator<Item = u8> {
         let start_sector = (self.start >> 16) as u8;
@@ -24,9 +27,12 @@ impl Range {
     fn pages<'a, const N: usize>(&'a self, action: &'a str) -> impl Iterator<Item = Range> + '_ {
         let count_pages = 1 + ((self.len - 1) / N);
         let end_addr = self.start + self.len;
+        let mut last_tick = Instant::now();
         (0..count_pages).map(move |page| {
-            if (page % 40) == 0 || (1 + page) == count_pages {
+            let now = Instant::now();
+            if now.duration_since(last_tick) >= REPORT_PERIOD || (1 + page) == count_pages {
                 info!("{} {}%", action, (100 * (1 + page)) / count_pages);
+                last_tick = now;
             }
             let start = self.start + (page * N);
             Range {
