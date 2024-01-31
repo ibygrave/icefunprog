@@ -21,10 +21,13 @@ impl Range {
         start_sector..=end_sector
     }
 
-    fn pages<const N: usize>(&self) -> impl Iterator<Item = Range> + '_ {
+    fn pages<'a, const N: usize>(&'a self, action: &'a str) -> impl Iterator<Item = Range> + '_ {
         let count_pages = 1 + ((self.len - 1) / N);
         let end_addr = self.start + self.len;
         (0..count_pages).map(move |page| {
+            if (page % 40) == 0 || (1 + page) == count_pages {
+                info!("{} {}%", action, (100 * (1 + page)) / count_pages);
+            }
             let start = self.start + (page * N);
             Range {
                 start,
@@ -68,20 +71,11 @@ impl<R: Read + Seek> FPGAProg<R> {
         mut action: impl FnMut(usize, &[u8]) -> Result<(), Error>,
     ) -> Result<(), Error> {
         let mut buf = [0u8; 256];
-
-        let progress = |addr: usize| {
-            info!("{} {}% ", action_name, (100 * addr) / self.range.len);
-        };
-
-        for Range { start, len } in self.range.pages::<256>() {
+        for Range { start, len } in self.range.pages::<256>(action_name) {
             let part_buf = &mut buf[..len];
             self.reader.read_exact(part_buf)?;
             action(start, part_buf)?;
-            if (start % 10240) == 0 {
-                progress(start);
-            }
         }
-        progress(self.range.len);
         Ok(())
     }
 
@@ -116,7 +110,7 @@ impl FPGADump<File> {
 
 impl<W: Write> FPGADump<W> {
     pub fn dump(&mut self, fpga: &mut impl Dumpable) -> Result<(), Error> {
-        for Range { start, len } in self.range.pages::<256>() {
+        for Range { start, len } in self.range.pages::<256>("Dumping") {
             fpga.read_page(start, len, &mut self.writer)?;
         }
         Ok(())
