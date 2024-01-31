@@ -22,10 +22,10 @@ const ADDR_SUFFIXES: [AddrSuffix; 2] = [
 pub fn parse_addr(arg: &str) -> Result<usize> {
     for addr_suffix in ADDR_SUFFIXES {
         if let Some(prefix) = arg.strip_suffix(addr_suffix.suffix) {
-            return Ok(addr_suffix.multiplier * prefix.parse::<usize>()?);
+            return Ok(addr_suffix.multiplier * parse_int::parse::<usize>(prefix)?);
         }
     }
-    Ok(parse_int::parse(arg)?)
+    Ok(parse_int::parse::<usize>(arg)?)
 }
 
 #[derive(clap::Args, Debug)]
