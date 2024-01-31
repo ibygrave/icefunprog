@@ -15,7 +15,7 @@ struct Args {
     #[arg(short, long)]
     port: Option<String>,
 
-    /// EEPROM offset (NYI)
+    /// EEPROM offset
     #[arg(short, long, default_value = "0", value_parser = parse_addr)]
     offset: usize,
 
@@ -37,7 +37,7 @@ fn main() -> Result<()> {
     env_logger::builder().filter_level(args.log_level).init();
 
     let port = open_port(&args.port)?;
-    let mut programmer = icefun::FPGAProg::from_path(args.input)?;
+    let mut programmer = icefun::FPGAProg::from_path(args.input, args.offset)?;
     let mut fpga = icefun::Device { port }.prepare()?;
     programmer.erase(&mut fpga)?;
     programmer.program(&mut fpga)?;

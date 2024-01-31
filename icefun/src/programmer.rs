@@ -8,32 +8,71 @@ use log::info;
 use crate::dev::{Dumpable, Programmable};
 use crate::err::Error;
 
+#[derive(Copy, Clone, Debug)]
+struct Block {
+    start: usize,
+    len: usize,
+}
+
+#[derive(Copy, Clone, Debug)]
+struct BlockRange<const N: usize>(Block);
+
+struct BlockRangeIter<const N: usize> {
+    addr: usize,
+    end_addr: usize,
+}
+
+impl<const N: usize> IntoIterator for BlockRange<N> {
+    type Item = Block;
+    type IntoIter = BlockRangeIter<N>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Self::IntoIter {
+            addr: self.0.start,
+            end_addr: self.0.start + self.0.len,
+        }
+    }
+}
+
+impl<const N: usize> Iterator for BlockRangeIter<N> {
+    type Item = Block;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.addr >= self.end_addr {
+            None
+        } else {
+            let start = self.addr;
+            let len = min(N, self.end_addr - start);
+            self.addr += N;
+            Some(Block { start, len })
+        }
+    }
+}
+
 pub struct FPGAProg<R: Read + Seek> {
     reader: R,
-    len: usize,
-    start_page: u8,
-    end_page: u8,
+    blocks: BlockRange<256>,
 }
 
 impl FPGAProg<File> {
-    pub fn from_path(path: impl AsRef<Path>) -> Result<Self, Error> {
+    pub fn from_path(path: impl AsRef<Path>, offset: usize) -> Result<Self, Error> {
         let meta = fs::metadata(&path)?;
         let file = File::open(&path)?;
-        let length = meta.len();
-        let start_page = 0u8;
-        let end_page = ((length >> 16) + 1) as u8;
         Ok(Self {
             reader: file,
-            len: length as usize,
-            start_page,
-            end_page,
+            blocks: BlockRange(Block {
+                start: offset,
+                len: meta.len() as usize,
+            }),
         })
     }
 }
 
 impl<R: Read + Seek> FPGAProg<R> {
     pub fn erase(&self, fpga: &mut impl Programmable) -> Result<(), Error> {
-        for page in self.start_page..=self.end_page {
+        let start_page = (self.blocks.0.start >> 16) as u8;
+        let end_page = ((self.blocks.0.start + self.blocks.0.len) >> 16) as u8;
+        for page in start_page..=end_page {
             info!("Erasing sector {:#02x}0000", page);
             fpga.erase64k(page)?;
         }
@@ -46,26 +85,20 @@ impl<R: Read + Seek> FPGAProg<R> {
         mut action: impl FnMut(usize, &[u8]) -> Result<(), Error>,
     ) -> Result<(), Error> {
         let mut buf = [0u8; 256];
-        let mut write_addr: usize = 0;
-        let end_addr = self.len;
 
         let progress = |addr: usize| {
-            info!("{} {}% ", action_name, (100 * addr) / end_addr);
+            info!("{} {}% ", action_name, (100 * addr) / self.blocks.0.len);
         };
 
-        progress(0);
-
-        while write_addr < end_addr {
-            let read_len = min(256, end_addr - write_addr);
-            let part_buf = &mut buf[..read_len];
+        for Block { start, len } in self.blocks {
+            let part_buf = &mut buf[..len];
             self.reader.read_exact(part_buf)?;
-            action(write_addr, part_buf)?;
-            write_addr += 256;
-            if (write_addr % 10240) == 0 {
-                progress(write_addr);
+            action(start, part_buf)?;
+            if (start % 10240) == 0 {
+                progress(start);
             }
         }
-        progress(end_addr);
+        progress(self.blocks.0.len);
         Ok(())
     }
 
@@ -82,28 +115,26 @@ impl<R: Read + Seek> FPGAProg<R> {
 
 pub struct FPGADump<W: Write> {
     writer: W,
+    blocks: BlockRange<256>,
 }
 
 impl FPGADump<File> {
-    pub fn from_path(path: impl AsRef<Path>) -> Result<Self, Error> {
+    pub fn from_path(path: impl AsRef<Path>, offset: usize, size: usize) -> Result<Self, Error> {
         let file = std::fs::File::create(path)?;
-        Ok(Self { writer: file })
+        Ok(Self {
+            writer: file,
+            blocks: BlockRange(Block {
+                start: offset,
+                len: size,
+            }),
+        })
     }
 }
 
 impl<W: Write> FPGADump<W> {
-    pub fn dump(
-        &mut self,
-        fpga: &mut impl Dumpable,
-        offset: usize,
-        size: usize,
-    ) -> Result<(), Error> {
-        let mut read_addr = offset;
-        let end_addr = offset + size;
-        while read_addr < end_addr {
-            let len = min(256usize, end_addr - read_addr);
-            fpga.read_page(read_addr, len, &mut self.writer)?;
-            read_addr += 256;
+    pub fn dump(&mut self, fpga: &mut impl Dumpable) -> Result<(), Error> {
+        for Block { start, len } in self.blocks {
+            fpga.read_page(start, len, &mut self.writer)?;
         }
         Ok(())
     }

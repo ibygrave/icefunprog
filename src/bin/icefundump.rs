@@ -39,8 +39,8 @@ fn main() -> Result<()> {
 
     let port = open_port(&args.port)?;
     let mut fpga = icefun::Device { port }.prepare()?;
-    let mut dumper = icefun::FPGADump::from_path(args.output)?;
-    dumper.dump(&mut fpga, args.offset, args.size)?;
+    let mut dumper = icefun::FPGADump::from_path(args.output, args.offset, args.size)?;
+    dumper.dump(&mut fpga)?;
 
     Ok(())
 }
