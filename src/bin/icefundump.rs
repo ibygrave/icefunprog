@@ -6,19 +6,14 @@ use clap::Parser;
 #[path = "../utils.rs"]
 mod utils;
 
-use crate::utils::{open_port, parse_addr};
+use crate::utils::{parse_addr, CommonArgs};
 
 /// Programming tool for Devantech iceFUN board.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Use the specified USB device
-    #[arg(short, long)]
-    port: Option<String>,
-
-    /// Read offset
-    #[arg(short, long, default_value = "0", value_parser = parse_addr)]
-    offset: usize,
+    #[command(flatten)]
+    common: CommonArgs,
 
     /// Read size
     #[arg(short, long, default_value = "0", value_parser = parse_addr)]
@@ -27,19 +22,15 @@ struct Args {
     /// Output file
     #[arg(value_name = "INPUT")]
     output: PathBuf,
-
-    /// Logging level. `Off` for silent operation.
-    #[arg(short, long, default_value = "Info")]
-    log_level: log::LevelFilter,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    env_logger::builder().filter_level(args.log_level).init();
+    args.common.init_logger();
 
-    let port = open_port(&args.port)?;
+    let port = args.common.open_port()?;
     let mut fpga = icefun::Device { port }.prepare()?;
-    let mut dumper = icefun::FPGADump::from_path(args.output, args.offset, args.size)?;
+    let mut dumper = icefun::FPGADump::from_path(args.output, args.common.offset, args.size)?;
     dumper.dump(&mut fpga)?;
 
     Ok(())

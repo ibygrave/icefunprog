@@ -5,19 +5,14 @@ use clap::Parser;
 
 mod utils;
 
-use crate::utils::{open_port, parse_addr};
+use crate::utils::CommonArgs;
 
 /// Programming tool for Devantech iceFUN board.
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Use the specified USB device
-    #[arg(short, long)]
-    port: Option<String>,
-
-    /// EEPROM offset
-    #[arg(short, long, default_value = "0", value_parser = parse_addr)]
-    offset: usize,
+    #[command(flatten)]
+    common: CommonArgs,
 
     /// Skip verification
     #[arg(short = 'v', long)]
@@ -26,18 +21,14 @@ struct Args {
     /// Input file to program
     #[arg(value_name = "INPUT")]
     input: PathBuf,
-
-    /// Logging level. `Off` for silent operation.
-    #[arg(short, long, default_value = "Info")]
-    log_level: log::LevelFilter,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    env_logger::builder().filter_level(args.log_level).init();
+    args.common.init_logger();
 
-    let port = open_port(&args.port)?;
-    let mut programmer = icefun::FPGAProg::from_path(args.input, args.offset)?;
+    let port = args.common.open_port()?;
+    let mut programmer = icefun::FPGAProg::from_path(args.input, args.common.offset)?;
     let mut fpga = icefun::Device { port }.prepare()?;
     programmer.erase(&mut fpga)?;
     programmer.program(&mut fpga)?;
