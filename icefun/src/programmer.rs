@@ -9,33 +9,18 @@ use crate::dev::{Dumpable, Programmable};
 use crate::err::Error;
 
 #[derive(Copy, Clone, Debug)]
-struct Block {
+struct Range {
     start: usize,
     len: usize,
 }
 
-#[derive(Copy, Clone, Debug)]
-struct BlockRange<const N: usize>(Block);
-
-struct BlockRangeIter<const N: usize> {
+struct RangeIter<const N: usize> {
     addr: usize,
     end_addr: usize,
 }
 
-impl<const N: usize> IntoIterator for BlockRange<N> {
-    type Item = Block;
-    type IntoIter = BlockRangeIter<N>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        Self::IntoIter {
-            addr: self.0.start,
-            end_addr: self.0.start + self.0.len,
-        }
-    }
-}
-
-impl<const N: usize> Iterator for BlockRangeIter<N> {
-    type Item = Block;
+impl<const N: usize> Iterator for RangeIter<N> {
+    type Item = Range;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.addr >= self.end_addr {
@@ -44,14 +29,29 @@ impl<const N: usize> Iterator for BlockRangeIter<N> {
             let start = self.addr;
             let len = min(N, self.end_addr - start);
             self.addr += N;
-            Some(Block { start, len })
+            Some(Range { start, len })
+        }
+    }
+}
+
+impl Range {
+    fn sectors(&self) -> impl Iterator<Item = u8> {
+        let start_sector = (self.start >> 16) as u8;
+        let end_sector = ((self.start + self.len) >> 16) as u8;
+        start_sector..=end_sector
+    }
+
+    fn pages<const N: usize>(&self) -> impl Iterator<Item = Range> {
+        RangeIter::<N> {
+            addr: self.start,
+            end_addr: self.start + self.len,
         }
     }
 }
 
 pub struct FPGAProg<R: Read + Seek> {
     reader: R,
-    blocks: BlockRange<256>,
+    range: Range,
 }
 
 impl FPGAProg<File> {
@@ -60,21 +60,19 @@ impl FPGAProg<File> {
         let file = File::open(&path)?;
         Ok(Self {
             reader: file,
-            blocks: BlockRange(Block {
+            range: Range {
                 start: offset,
                 len: meta.len() as usize,
-            }),
+            },
         })
     }
 }
 
 impl<R: Read + Seek> FPGAProg<R> {
     pub fn erase(&self, fpga: &mut impl Programmable) -> Result<(), Error> {
-        let start_page = (self.blocks.0.start >> 16) as u8;
-        let end_page = ((self.blocks.0.start + self.blocks.0.len) >> 16) as u8;
-        for page in start_page..=end_page {
-            info!("Erasing sector {:#02x}0000", page);
-            fpga.erase64k(page)?;
+        for sector in self.range.sectors() {
+            info!("Erasing sector {:#02x}0000", sector);
+            fpga.erase64k(sector)?;
         }
         Ok(())
     }
@@ -87,10 +85,10 @@ impl<R: Read + Seek> FPGAProg<R> {
         let mut buf = [0u8; 256];
 
         let progress = |addr: usize| {
-            info!("{} {}% ", action_name, (100 * addr) / self.blocks.0.len);
+            info!("{} {}% ", action_name, (100 * addr) / self.range.len);
         };
 
-        for Block { start, len } in self.blocks {
+        for Range { start, len } in self.range.pages::<256>() {
             let part_buf = &mut buf[..len];
             self.reader.read_exact(part_buf)?;
             action(start, part_buf)?;
@@ -98,7 +96,7 @@ impl<R: Read + Seek> FPGAProg<R> {
                 progress(start);
             }
         }
-        progress(self.blocks.0.len);
+        progress(self.range.len);
         Ok(())
     }
 
@@ -115,7 +113,7 @@ impl<R: Read + Seek> FPGAProg<R> {
 
 pub struct FPGADump<W: Write> {
     writer: W,
-    blocks: BlockRange<256>,
+    range: Range,
 }
 
 impl FPGADump<File> {
@@ -123,17 +121,17 @@ impl FPGADump<File> {
         let file = std::fs::File::create(path)?;
         Ok(Self {
             writer: file,
-            blocks: BlockRange(Block {
+            range: Range {
                 start: offset,
                 len: size,
-            }),
+            },
         })
     }
 }
 
 impl<W: Write> FPGADump<W> {
     pub fn dump(&mut self, fpga: &mut impl Dumpable) -> Result<(), Error> {
-        for Block { start, len } in self.blocks {
+        for Range { start, len } in self.range.pages::<256>() {
             fpga.read_page(start, len, &mut self.writer)?;
         }
         Ok(())
