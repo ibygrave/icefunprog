@@ -10,15 +10,24 @@ pub struct Device<Port: Read + Write> {
 }
 
 impl<Port: Read + Write> Device<Port> {
+    /// # Errors
+    ///
+    /// Will return `Err` if commnication fails.
     fn getver(&mut self) -> Result<cmds::GetVerReply, Error> {
-        cmds::CMD_GET_VER.send(&mut self.port, ())
+        cmds::CMD_GET_VER.send(&mut self.port, &())
     }
 
+    /// # Errors
+    ///
+    /// Will return `Err` if commnication fails.
     pub fn reset_fpga(mut self) -> Result<([u8; 3], DeviceInReset<Port>), Error> {
-        let ver = cmds::CMD_RESET.send(&mut self.port, ())?;
+        let ver = cmds::CMD_RESET.send(&mut self.port, &())?;
         Ok((ver, DeviceInReset(self)))
     }
 
+    /// # Errors
+    ///
+    /// Will return `Err` if commnication fails.
     pub fn prepare(mut self) -> Result<DeviceInReset<Port>, Error> {
         let ver = self.getver()?;
         info!("iceFUN v{}", ver.0);
@@ -44,33 +53,42 @@ pub trait Dumpable {
 pub struct DeviceInReset<Port: Read + Write>(pub Device<Port>);
 
 impl<Port: Read + Write> Programmable for DeviceInReset<Port> {
+    /// # Errors
+    ///
+    /// Will return `Err` if commnication fails.
     fn erase64k(&mut self, page: u8) -> Result<(), Error> {
-        cmds::CMD_ERASE_64K.send(&mut self.0.port, [page])
+        cmds::CMD_ERASE_64K.send(&mut self.0.port, &[page])
     }
 
+    /// # Errors
+    ///
+    /// Will return `Err` if commnication fails.
     fn program_page(&mut self, addr: usize, data: &[u8]) -> Result<(), Error> {
-        cmds::CMD_PROGRAM_PAGE.send(&mut self.0.port, cmds::ProgData { addr, data })?;
+        cmds::CMD_PROGRAM_PAGE.send(&mut self.0.port, &cmds::ProgData { addr, data })?;
         Ok(())
     }
 
+    /// # Errors
+    ///
+    /// Will return `Err` if commnication fails.
     fn verify_page(&mut self, addr: usize, data: &[u8]) -> Result<(), Error> {
-        cmds::CMD_VERIFY_PAGE.send(&mut self.0.port, cmds::ProgData { addr, data })?;
+        cmds::CMD_VERIFY_PAGE.send(&mut self.0.port, &cmds::ProgData { addr, data })?;
         Ok(())
     }
 }
 
 impl<Port: Read + Write> Dumpable for DeviceInReset<Port> {
+    /// # Errors
+    ///
+    /// Will return `Err` if commnication fails, or if `addr` and `len` are out of range.
     fn read_page(&mut self, addr: usize, len: usize, output: &mut impl Write) -> Result<(), Error> {
         if len > 256 {
-            return Err(Error::Dump(format!(
-                "Reading {} bytes of 256 byte page",
-                len
-            )));
+            return Err(Error::Dump(format!("Reading {len} bytes of 256 byte page")));
         }
         if addr + len > (1024 * 1024) {
             return Err(Error::Dump("Reading beyond 1MB".to_string()));
         }
-        let data = cmds::CMD_READ_PAGE.send(&mut self.0.port, cmds::ReadData { addr })?;
+        let data = cmds::CMD_READ_PAGE.send(&mut self.0.port, &cmds::ReadData { addr })?;
         output.write_all(&data.0[..len])?;
         Ok(())
     }
@@ -78,6 +96,6 @@ impl<Port: Read + Write> Dumpable for DeviceInReset<Port> {
 
 impl<Port: Read + Write> Drop for DeviceInReset<Port> {
     fn drop(&mut self) {
-        cmds::CMD_RELEASE_FPGA.send(&mut self.0.port, ()).ok();
+        cmds::CMD_RELEASE_FPGA.send(&mut self.0.port, &()).ok();
     }
 }

@@ -71,7 +71,7 @@ impl<Args: CmdArgs, Reply: CmdReply> Command<Args, Reply> {
         }
     }
 
-    pub(crate) fn send(&self, port: &mut (impl Read + Write), args: Args) -> Result<Reply, Error> {
+    pub(crate) fn send(&self, port: &mut (impl Read + Write), args: &Args) -> Result<Reply, Error> {
         port.write_all(&[self.cmd])?;
         if log::log_enabled!(log::Level::Trace) {
             let mut arg_buf: Vec<u8> = vec![];
