@@ -9,19 +9,25 @@ pub struct Device<Port: Read + Write> {
     pub port: Port,
 }
 
+impl<Port: Read + Write> AsMut<Port> for Device<Port> {
+    fn as_mut(&mut self) -> &mut Port {
+        &mut self.port
+    }
+}
+
 impl<Port: Read + Write> Device<Port> {
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
     fn getver(&mut self) -> Result<cmds::GetVerReply, Error> {
-        cmds::CMD_GET_VER.send(&mut self.port, &())
+        cmds::CMD_GET_VER.send(self, &())
     }
 
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
     pub fn reset_fpga(mut self) -> Result<([u8; 3], DeviceInReset<Port>), Error> {
-        let ver = cmds::CMD_RESET.send(&mut self.port, &())?;
+        let ver = cmds::CMD_RESET.send(&mut self, &())?;
         Ok((ver, DeviceInReset(self)))
     }
 
@@ -52,19 +58,25 @@ pub trait Dumpable {
 
 pub struct DeviceInReset<Port: Read + Write>(pub Device<Port>);
 
+impl<Port: Read + Write> AsMut<Port> for DeviceInReset<Port> {
+    fn as_mut(&mut self) -> &mut Port {
+        &mut self.0.port
+    }
+}
+
 impl<Port: Read + Write> Programmable for DeviceInReset<Port> {
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
     fn erase64k(&mut self, page: u8) -> Result<(), Error> {
-        cmds::CMD_ERASE_64K.send(&mut self.0.port, &[page])
+        cmds::CMD_ERASE_64K.send(self, &[page])
     }
 
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
     fn program_page(&mut self, addr: usize, data: &[u8]) -> Result<(), Error> {
-        cmds::CMD_PROGRAM_PAGE.send(&mut self.0.port, &cmds::ProgData { addr, data })?;
+        cmds::CMD_PROGRAM_PAGE.send(self, &cmds::ProgData { addr, data })?;
         Ok(())
     }
 
@@ -72,7 +84,7 @@ impl<Port: Read + Write> Programmable for DeviceInReset<Port> {
     ///
     /// Will return `Err` if commnication fails.
     fn verify_page(&mut self, addr: usize, data: &[u8]) -> Result<(), Error> {
-        cmds::CMD_VERIFY_PAGE.send(&mut self.0.port, &cmds::ProgData { addr, data })?;
+        cmds::CMD_VERIFY_PAGE.send(self, &cmds::ProgData { addr, data })?;
         Ok(())
     }
 }
@@ -88,7 +100,7 @@ impl<Port: Read + Write> Dumpable for DeviceInReset<Port> {
         if addr + len > (1024 * 1024) {
             return Err(Error::Dump("Reading beyond 1MB".to_string()));
         }
-        let data = cmds::CMD_READ_PAGE.send(&mut self.0.port, &cmds::ReadData { addr })?;
+        let data = cmds::CMD_READ_PAGE.send(self, &cmds::ReadData { addr })?;
         output.write_all(&data.0[..len])?;
         Ok(())
     }
@@ -96,6 +108,6 @@ impl<Port: Read + Write> Dumpable for DeviceInReset<Port> {
 
 impl<Port: Read + Write> Drop for DeviceInReset<Port> {
     fn drop(&mut self) {
-        cmds::CMD_RELEASE_FPGA.send(&mut self.0.port, &()).ok();
+        cmds::CMD_RELEASE_FPGA.send(self, &()).ok();
     }
 }
