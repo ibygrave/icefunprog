@@ -71,17 +71,23 @@ impl<Args: CmdArgs, Reply: CmdReply> Command<Args, Reply> {
         }
     }
 
-    pub(crate) fn send(&self, port: &mut (impl Read + Write), args: &Args) -> Result<Reply, Error> {
-        port.write_all(&[self.cmd])?;
+    pub(crate) fn send<Port, R, W>(&self, port: &mut Port, args: &Args) -> Result<Reply, Error>
+    where
+        R: Read,
+        W: Write,
+        Port: AsMut<R> + AsMut<W>,
+    {
+        let writer = <Port as AsMut<W>>::as_mut(port);
+        writer.write_all(&[self.cmd])?;
         if log::log_enabled!(log::Level::Trace) {
             let mut arg_buf: Vec<u8> = vec![];
             args.send_args(&mut arg_buf)?;
             trace!("Send command: {:02x} {:02x?}", self.cmd, arg_buf);
-            port.write_all(&arg_buf)?;
+            writer.write_all(&arg_buf)?;
         } else {
-            args.send_args(port)?;
+            args.send_args(writer)?;
         }
-        let mut reader = BufReader::new(port);
+        let mut reader = BufReader::new(<Port as AsMut<R>>::as_mut(port));
         let data = reader.fill_buf()?;
         trace!("Receive reply: {:02x?}", data);
         let reply = Reply::receive_reply(&mut reader)?;
@@ -168,5 +174,56 @@ impl CmdReply for ReadResult {
         let mut rr = ReadResult([0; 256]);
         reader.read_exact(&mut rr.0)?;
         Ok(rr)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_mocks::TestCmd;
+
+    #[test]
+    fn test_get_ver_err() {
+        let port = CMD_GET_VER.test_err(vec![0, 0], &());
+        assert_eq!(port.written(), vec![CMD_GET_VER.cmd]);
+    }
+
+    #[test]
+    fn test_get_ver() {
+        let (port, reply) = CMD_GET_VER.test_ok(vec![38, 5], &());
+        assert_eq!(port.written(), vec![CMD_GET_VER.cmd]);
+        assert_eq!(reply.0, 5);
+    }
+
+    #[test]
+    fn test_reset() {
+        let (port, reply) = CMD_RESET.test_ok(vec![1, 2, 3], &());
+        assert_eq!(port.written(), vec![CMD_RESET.cmd]);
+        assert_eq!(reply, [1, 2, 3]);
+    }
+
+    #[test]
+    fn test_erase() {
+        let (port, ()) = CMD_ERASE_64K.test_ok(vec![38], &[42]);
+        assert_eq!(port.written(), vec![CMD_ERASE_64K.cmd, 42]);
+    }
+
+    #[test]
+    fn test_program() {
+        let content = [0; 300];
+        let prog_data = ProgData {
+            addr: 0x2328,
+            data: &content,
+        };
+        let (port, _) = CMD_PROGRAM_PAGE.test_ok(vec![0], &prog_data);
+        let written = port.written();
+        assert_eq!(written[0..4], [CMD_PROGRAM_PAGE.cmd, 0, 0x23, 0x28]);
+        assert_eq!(written[4..], content[..256]);
+    }
+
+    #[test]
+    fn test_release() {
+        let (port, ()) = CMD_RELEASE_FPGA.test_ok(vec![0], &());
+        assert_eq!(port.written(), vec![CMD_RELEASE_FPGA.cmd]);
     }
 }
