@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 use log::info;
 
-use crate::cmds;
+use crate::cmds::{self, PAGE_SIZE};
 use crate::err::Error;
 
 pub struct Device<Port: Read + Write> {
@@ -94,8 +94,10 @@ impl<Port: Read + Write> Dumpable for DeviceInReset<Port> {
     ///
     /// Will return `Err` if commnication fails, or if `addr` and `len` are out of range.
     fn read_page(&mut self, addr: usize, len: usize, output: &mut impl Write) -> Result<(), Error> {
-        if len > 256 {
-            return Err(Error::Dump(format!("Reading {len} bytes of 256 byte page")));
+        if len > PAGE_SIZE {
+            return Err(Error::Dump(format!(
+                "Reading {len} bytes of {PAGE_SIZE} byte page"
+            )));
         }
         if addr + len > (1024 * 1024) {
             return Err(Error::Dump("Reading beyond 1MB".to_string()));

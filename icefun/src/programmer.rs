@@ -6,6 +6,7 @@ use std::{fs, path::Path, usize};
 
 use log::info;
 
+use crate::cmds::PAGE_SIZE;
 use crate::dev::{Dumpable, Programmable};
 use crate::err::Error;
 
@@ -85,8 +86,8 @@ impl<R: Read + Seek> FPGAProg<R> {
         action_name: &str,
         mut action: impl FnMut(usize, &[u8]) -> Result<(), Error>,
     ) -> Result<(), Error> {
-        let mut buf = [0u8; 256];
-        for Range { start, len } in self.range.pages::<256>(action_name) {
+        let mut buf = [0u8; PAGE_SIZE];
+        for Range { start, len } in self.range.pages::<PAGE_SIZE>(action_name) {
             let part_buf = &mut buf[..len];
             self.reader.read_exact(part_buf)?;
             action(start, part_buf)?;
@@ -137,7 +138,7 @@ impl<W: Write> FPGADump<W> {
     ///
     /// Will return `Err` if commnication fails.
     pub fn dump(&mut self, fpga: &mut impl Dumpable) -> Result<(), Error> {
-        for Range { start, len } in self.range.pages::<256>("Dumping") {
+        for Range { start, len } in self.range.pages::<PAGE_SIZE>("Dumping") {
             fpga.read_page(start, len, &mut self.writer)?;
         }
         Ok(())
