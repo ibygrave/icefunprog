@@ -19,6 +19,9 @@ struct Range {
 const REPORT_PERIOD: Duration = Duration::from_secs(1);
 
 impl Range {
+    fn new(start: usize, len: usize) -> Self {
+        Self { start, len }
+    }
     /// # Errors
     ///
     /// Will return `Err` if addresses are out of range.
@@ -39,10 +42,7 @@ impl Range {
                 last_tick = now;
             }
             let start = self.start + (page * N);
-            Range {
-                start,
-                len: min(N, end_addr - start),
-            }
+            Range::new(start, min(N, end_addr - start))
         })
     }
 }
@@ -61,10 +61,7 @@ impl FPGAProg<File> {
         let file = File::open(&path)?;
         Ok(Self {
             reader: file,
-            range: Range {
-                start: offset,
-                len: usize::try_from(meta.len())?,
-            },
+            range: Range::new(offset, usize::try_from(meta.len())?),
         })
     }
 }
@@ -125,10 +122,7 @@ impl FPGADump<File> {
         let file = std::fs::File::create(path)?;
         Ok(Self {
             writer: file,
-            range: Range {
-                start: offset,
-                len: size,
-            },
+            range: Range::new(offset, size),
         })
     }
 }

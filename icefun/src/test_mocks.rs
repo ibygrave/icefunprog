@@ -33,6 +33,12 @@ pub(crate) struct MockPort {
 }
 
 impl MockPort {
+    fn new(data: Vec<u8>) -> Self {
+        Self {
+            reader: ReadBuf(Cursor::new(data)),
+            writer: WriteBuf(Cursor::new(vec![])),
+        }
+    }
     pub(crate) fn written(self) -> Vec<u8> {
         self.writer.0.into_inner()
     }
@@ -67,10 +73,7 @@ pub(crate) trait TestCmd<A, R> {
 impl<A: CmdArgs, R: CmdReply> TestCmd<A, R> for Command<A, R> {
     type Error = Error;
     fn test(&self, data: Vec<u8>, args: &A) -> (MockPort, Result<R, Self::Error>) {
-        let mut port = MockPort {
-            reader: ReadBuf(Cursor::new(data)),
-            writer: WriteBuf(Cursor::new(vec![])),
-        };
+        let mut port = MockPort::new(data);
         let result = self.send::<_, ReadBuf, WriteBuf>(&mut port, args);
         (port, result)
     }
