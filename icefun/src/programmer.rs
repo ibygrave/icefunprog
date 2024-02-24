@@ -34,7 +34,7 @@ impl Range {
         (0..count_pages).map(move |page| {
             let now = Instant::now();
             if now.duration_since(last_tick) >= REPORT_PERIOD || (1 + page) == count_pages {
-                info!("{} {}%", action, (100 * (1 + page)) / count_pages);
+                info!("{action} {}%", (100 * (1 + page)) / count_pages);
                 last_tick = now;
             }
             let start = self.start + (page * N);
@@ -74,7 +74,7 @@ impl<R: Read + Seek> FPGAProg<R> {
     /// Will return `Err` if commnication fails.
     pub fn erase(&self, fpga: &mut impl Programmable) -> Result<(), Error> {
         for sector in self.range.sectors()? {
-            info!("Erasing sector {:#02x}0000", sector);
+            info!("Erasing sector {sector:#02x}0000");
             fpga.erase64k(sector)?;
         }
         Ok(())

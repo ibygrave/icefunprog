@@ -82,18 +82,18 @@ impl<Args: CmdArgs, Reply: CmdReply> Command<Args, Reply> {
         if log::log_enabled!(log::Level::Trace) {
             let mut arg_buf: Vec<u8> = vec![];
             args.send_args(&mut arg_buf)?;
-            trace!("Send command: {:02x} {:02x?}", self.cmd, arg_buf);
+            trace!("Send command: {:02x} {arg_buf:02x?}", self.cmd);
             writer.write_all(&arg_buf)?;
         } else {
             args.send_args(writer)?;
         }
         let mut reader = BufReader::new(<Port as AsMut<R>>::as_mut(port));
         let data = reader.fill_buf()?;
-        trace!("Receive reply: {:02x?}", data);
+        trace!("Receive reply: {data:02x?}");
         let reply = Reply::receive_reply(&mut reader)?;
         let remain = reader.buffer();
         if !remain.is_empty() {
-            debug!("Unread reply: {:02x?}", remain);
+            debug!("Unread reply: {remain:02x?}");
         }
         Ok(reply)
     }
