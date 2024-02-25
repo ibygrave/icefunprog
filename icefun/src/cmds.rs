@@ -220,7 +220,7 @@ mod tests {
             addr: 0x2328,
             data: &content,
         };
-        let (port, _) = CMD_PROGRAM_PAGE.test_ok(vec![0], &prog_data);
+        let (port, _) = CMD_PROGRAM_PAGE.test_ok(vec![0; 4], &prog_data);
         let written = port.written();
         assert_eq!(written[0..4], [CMD_PROGRAM_PAGE.cmd, 0, 0x23, 0x28]);
         assert_eq!(written[4..], content[..PAGE_SIZE]);
