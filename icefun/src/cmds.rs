@@ -143,16 +143,15 @@ pub(crate) struct ProgResult;
 
 impl CmdReply for ProgResult {
     fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {
-        let mut rc = [0u8];
-        reader.read_exact(&mut rc)?;
-        if rc[0] == 0 {
+        let mut reply = [0u8; 4];
+        reader.read_exact(&mut reply)?;
+        if reply[0] == 0 {
             Ok(ProgResult)
         } else {
-            let mut err_data = [0u8; 3];
-            reader.read_exact(&mut err_data)?;
+            let err_data = &reply[1..];
             Err(Error::Cmd(format!(
                 "prog rc {:#02x} at page + {:#02x}, {:#02x} expected, {:#02x} read.",
-                rc[0], err_data[0], err_data[1], err_data[2]
+                reply[0], err_data[0], err_data[1], err_data[2]
             )))
         }
     }
