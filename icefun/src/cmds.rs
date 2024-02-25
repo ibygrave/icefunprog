@@ -1,10 +1,10 @@
 use std::{
     fmt::Debug,
-    io::{BufRead, BufReader, Read, Write},
+    io::{Read, Write},
     marker::PhantomData,
 };
 
-use tracing::{debug, instrument};
+use tracing::instrument;
 
 use crate::err::Error;
 
@@ -89,14 +89,7 @@ impl<Args: CmdArgs, Reply: CmdReply> Command<Args, Reply> {
         let writer = <Port as AsMut<W>>::as_mut(port);
         writer.write_all(&[self.cmd])?;
         args.send_args(writer)?;
-        let mut reader = BufReader::new(<Port as AsMut<R>>::as_mut(port));
-        reader.fill_buf()?;
-        let reply = Reply::receive_reply(&mut reader)?;
-        let remain = reader.buffer();
-        if !remain.is_empty() {
-            debug!(data = ?remain, "Unread reply");
-        }
-        Ok(reply)
+        Reply::receive_reply(<Port as AsMut<R>>::as_mut(port))
     }
 }
 
