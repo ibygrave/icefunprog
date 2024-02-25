@@ -1,7 +1,12 @@
-use std::time::Duration;
+use std::{
+    io::{Read, Write},
+    time::Duration,
+};
 
 use anyhow::Result;
 use serialport::{FlowControl, SerialPort, SerialPortBuilder, SerialPortType};
+use tracing::trace;
+use tracing_subscriber::filter::LevelFilter;
 
 struct AddrSuffix {
     suffix: char,
@@ -28,6 +33,28 @@ pub fn parse_addr(arg: &str) -> Result<usize> {
     Ok(parse_int::parse::<usize>(arg)?)
 }
 
+pub struct TracePort<Port: Read + Write>(Port);
+
+impl<Port: Read + Write> Read for TracePort<Port> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let read_len = self.0.read(buf)?;
+        let read_data = &buf[..read_len];
+        trace!(?read_data, "read");
+        Ok(read_len)
+    }
+}
+
+impl<Port: Read + Write> Write for TracePort<Port> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        trace!(?buf, "write");
+        self.0.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush()
+    }
+}
+
 #[derive(clap::Args, Debug)]
 pub struct CommonArgs {
     /// Use the specified USB device
@@ -36,7 +63,7 @@ pub struct CommonArgs {
 
     /// Logging level. `Off` for silent operation.
     #[arg(short, long, default_value = "Info")]
-    pub log_level: log::LevelFilter,
+    pub log_level: LevelFilter,
 
     /// EEPROM start offset
     #[arg(short, long, default_value = "0", value_parser = parse_addr)]
@@ -45,7 +72,11 @@ pub struct CommonArgs {
 
 impl CommonArgs {
     pub fn init_logger(&self) {
-        env_logger::builder().filter_level(self.log_level).init();
+        let subscriber = tracing_subscriber::FmtSubscriber::builder()
+            .with_max_level(self.log_level.clone())
+            .finish();
+        tracing::subscriber::set_global_default(subscriber)
+            .expect("setting tracing default failed");
     }
 
     fn find_port(&self) -> Result<SerialPortBuilder> {
@@ -63,10 +94,10 @@ impl CommonArgs {
         }
     }
 
-    pub fn open_port(&self) -> Result<impl SerialPort> {
+    pub fn open_port(&self) -> Result<impl Read + Write> {
         let mut port = self.find_port()?.open_native()?;
         port.set_flow_control(FlowControl::None)?;
         port.set_timeout(Duration::from_secs(10))?;
-        Ok(port)
+        Ok(TracePort(port))
     }
 }
