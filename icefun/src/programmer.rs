@@ -4,7 +4,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use std::time::{Duration, Instant};
 use std::{fs, path::Path, usize};
 
-use log::info;
+use tracing::{info, instrument};
 
 use crate::cmds::PAGE_SIZE;
 use crate::dev::{Dumpable, Programmable};
@@ -31,14 +31,16 @@ impl Range {
         Ok(start_sector..=end_sector)
     }
 
-    fn pages<'a, const N: usize>(&'a self, action: &'a str) -> impl Iterator<Item = Range> + '_ {
+    #[instrument]
+    fn pages<'a, const N: usize>(&'a self) -> impl Iterator<Item = Range> + '_ {
         let count_pages = 1 + ((self.len - 1) / N);
         let end_addr = self.start + self.len;
         let mut last_tick = Instant::now();
         (0..count_pages).map(move |page| {
             let now = Instant::now();
             if now.duration_since(last_tick) >= REPORT_PERIOD || (1 + page) == count_pages {
-                info!("{action} {}%", (100 * (1 + page)) / count_pages);
+                let progress = format!("{}%", (100 * (1 + page)) / count_pages);
+                info!(progress);
                 last_tick = now;
             }
             let start = self.start + (page * N);
@@ -70,9 +72,10 @@ impl<R: Read + Seek> FPGAProg<R> {
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
+    #[instrument(skip_all)]
     pub fn erase(&self, fpga: &mut impl Programmable) -> Result<(), Error> {
         for sector in self.range.sectors()? {
-            info!("Erasing sector {sector:#02x}0000");
+            info!(sector, "Erasing");
             fpga.erase64k(sector)?;
         }
         Ok(())
@@ -80,11 +83,10 @@ impl<R: Read + Seek> FPGAProg<R> {
 
     fn do_pages(
         &mut self,
-        action_name: &str,
         mut action: impl FnMut(usize, &[u8]) -> Result<(), Error>,
     ) -> Result<(), Error> {
         let mut buf = [0u8; PAGE_SIZE];
-        for Range { start, len } in self.range.pages::<PAGE_SIZE>(action_name) {
+        for Range { start, len } in self.range.pages::<PAGE_SIZE>() {
             let part_buf = &mut buf[..len];
             self.reader.read_exact(part_buf)?;
             action(start, part_buf)?;
@@ -95,17 +97,19 @@ impl<R: Read + Seek> FPGAProg<R> {
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
+    #[instrument(skip_all)]
     pub fn program(&mut self, fpga: &mut impl Programmable) -> Result<(), Error> {
         self.reader.seek(SeekFrom::Start(0))?;
-        self.do_pages("Programming", |addr, data| fpga.program_page(addr, data))
+        self.do_pages(|addr, data| fpga.program_page(addr, data))
     }
 
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
+    #[instrument(skip_all)]
     pub fn verify(&mut self, fpga: &mut impl Programmable) -> Result<(), Error> {
         self.reader.seek(SeekFrom::Start(0))?;
-        self.do_pages("Verifying", |addr, data| fpga.verify_page(addr, data))
+        self.do_pages(|addr, data| fpga.verify_page(addr, data))
     }
 }
 
@@ -131,8 +135,9 @@ impl<W: Write> FPGADump<W> {
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
+    #[instrument(skip_all)]
     pub fn dump(&mut self, fpga: &mut impl Dumpable) -> Result<(), Error> {
-        for Range { start, len } in self.range.pages::<PAGE_SIZE>("Dumping") {
+        for Range { start, len } in self.range.pages::<PAGE_SIZE>() {
             fpga.read_page(start, len, &mut self.writer)?;
         }
         Ok(())

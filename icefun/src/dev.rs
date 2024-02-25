@@ -1,6 +1,6 @@
 use std::io::{Read, Write};
 
-use log::info;
+use tracing::{info, instrument};
 
 use crate::cmds::{self, PAGE_SIZE};
 use crate::err::Error;
@@ -19,6 +19,7 @@ impl<Port: Read + Write> Device<Port> {
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
+    #[instrument(skip(self))]
     fn getver(&mut self) -> Result<cmds::GetVerReply, Error> {
         cmds::CMD_GET_VER.send(self, &())
     }
@@ -34,14 +35,12 @@ impl<Port: Read + Write> Device<Port> {
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
+    #[instrument(skip(self))]
     pub fn prepare(mut self) -> Result<DeviceInReset<Port>, Error> {
         let ver = self.getver()?;
-        info!("iceFUN v{}", ver.0);
+        info!(?ver, "iceFUN version");
         let (reset_reply, dev_in_reset) = self.reset_fpga()?;
-        info!(
-            "Flash ID {:#02x} {:#02x} {:#02x}",
-            reset_reply[0], reset_reply[1], reset_reply[2]
-        );
+        info!(?reset_reply, "Flash ID");
         Ok(dev_in_reset)
     }
 }
@@ -68,6 +67,7 @@ impl<Port: Read + Write> Programmable for DeviceInReset<Port> {
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
+    #[instrument(skip(self))]
     fn erase64k(&mut self, page: u8) -> Result<(), Error> {
         cmds::CMD_ERASE_64K.send(self, &[page])
     }
@@ -75,6 +75,7 @@ impl<Port: Read + Write> Programmable for DeviceInReset<Port> {
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
+    #[instrument(skip(self, data))]
     fn program_page(&mut self, addr: usize, data: &[u8]) -> Result<(), Error> {
         cmds::CMD_PROGRAM_PAGE.send(self, &cmds::ProgData { addr, data })?;
         Ok(())
@@ -83,6 +84,7 @@ impl<Port: Read + Write> Programmable for DeviceInReset<Port> {
     /// # Errors
     ///
     /// Will return `Err` if commnication fails.
+    #[instrument(skip(self, data))]
     fn verify_page(&mut self, addr: usize, data: &[u8]) -> Result<(), Error> {
         cmds::CMD_VERIFY_PAGE.send(self, &cmds::ProgData { addr, data })?;
         Ok(())
@@ -93,6 +95,7 @@ impl<Port: Read + Write> Dumpable for DeviceInReset<Port> {
     /// # Errors
     ///
     /// Will return `Err` if commnication fails, or if `addr` and `len` are out of range.
+    #[instrument(skip(self, output))]
     fn read_page(&mut self, addr: usize, len: usize, output: &mut impl Write) -> Result<(), Error> {
         if len > PAGE_SIZE {
             return Err(Error::Dump(format!(

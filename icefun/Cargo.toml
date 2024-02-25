@@ -7,4 +7,4 @@ edition = "2021"
 pedantic = "warn"
 
 [dependencies]
-log = "0.4"
+tracing = "0.1"

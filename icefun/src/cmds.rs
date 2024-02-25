@@ -1,9 +1,10 @@
 use std::{
+    fmt::Debug,
     io::{BufRead, BufReader, Read, Write},
     marker::PhantomData,
 };
 
-use log::{debug, trace};
+use tracing::{debug, instrument};
 
 use crate::err::Error;
 
@@ -16,7 +17,7 @@ pub(crate) const CMD_READ_PAGE: Command<ReadData, ReadResult> = Command::new(0xb
 pub(crate) const CMD_VERIFY_PAGE: Command<ProgData, ProgResult> = Command::new(0xb7);
 pub(crate) const CMD_RELEASE_FPGA: Command<(), ()> = Command::new(0xb9);
 
-pub(crate) trait CmdArgs {
+pub(crate) trait CmdArgs: Debug {
     fn send_args(&self, writer: &mut impl Write) -> Result<(), Error>;
 }
 
@@ -34,7 +35,7 @@ impl<const LEN: usize> CmdArgs for [u8; LEN] {
     }
 }
 
-pub(crate) trait CmdReply
+pub(crate) trait CmdReply: Debug
 where
     Self: Sized,
 {
@@ -57,6 +58,7 @@ impl<const LEN: usize> CmdReply for [u8; LEN] {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct Command<Args: CmdArgs, Reply: CmdReply> {
     cmd: u8,
     _args: PhantomData<Args>,
@@ -72,6 +74,7 @@ impl<Args: CmdArgs, Reply: CmdReply> Command<Args, Reply> {
         }
     }
 
+    #[instrument(skip(port))]
     pub(crate) fn send<Port, R, W>(&self, port: &mut Port, args: &Args) -> Result<Reply, Error>
     where
         R: Read,
@@ -80,26 +83,19 @@ impl<Args: CmdArgs, Reply: CmdReply> Command<Args, Reply> {
     {
         let writer = <Port as AsMut<W>>::as_mut(port);
         writer.write_all(&[self.cmd])?;
-        if log::log_enabled!(log::Level::Trace) {
-            let mut arg_buf: Vec<u8> = vec![];
-            args.send_args(&mut arg_buf)?;
-            trace!("Send command: {:02x} {arg_buf:02x?}", self.cmd);
-            writer.write_all(&arg_buf)?;
-        } else {
-            args.send_args(writer)?;
-        }
+        args.send_args(writer)?;
         let mut reader = BufReader::new(<Port as AsMut<R>>::as_mut(port));
-        let data = reader.fill_buf()?;
-        trace!("Receive reply: {data:02x?}");
+        reader.fill_buf()?;
         let reply = Reply::receive_reply(&mut reader)?;
         let remain = reader.buffer();
         if !remain.is_empty() {
-            debug!("Unread reply: {remain:02x?}");
+            debug!(data = ?remain, "Unread reply");
         }
         Ok(reply)
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct ProgData<'a> {
     pub addr: usize,
     pub data: &'a [u8],
@@ -122,6 +118,7 @@ impl CmdArgs for ProgData<'_> {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct GetVerReply(pub u8);
 
 impl CmdReply for GetVerReply {
@@ -136,6 +133,7 @@ impl CmdReply for GetVerReply {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct ProgResult;
 
 impl CmdReply for ProgResult {
@@ -155,6 +153,7 @@ impl CmdReply for ProgResult {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct ReadData {
     /// address in bytes
     pub addr: usize,
@@ -168,6 +167,7 @@ impl CmdArgs for ReadData {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct ReadResult(pub [u8; PAGE_SIZE]);
 
 impl CmdReply for ReadResult {
