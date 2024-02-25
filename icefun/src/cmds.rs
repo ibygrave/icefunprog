@@ -58,11 +58,16 @@ impl<const LEN: usize> CmdReply for [u8; LEN] {
     }
 }
 
-#[derive(Debug)]
 pub(crate) struct Command<Args: CmdArgs, Reply: CmdReply> {
     cmd: u8,
     _args: PhantomData<Args>,
     _reply: PhantomData<Reply>,
+}
+
+impl<Args: CmdArgs, Reply: CmdReply> Debug for Command<Args, Reply> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Command").field("cmd", &self.cmd).finish()
+    }
 }
 
 impl<Args: CmdArgs, Reply: CmdReply> Command<Args, Reply> {
