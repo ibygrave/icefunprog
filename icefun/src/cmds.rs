@@ -86,10 +86,11 @@ impl<Args: CmdArgs, Reply: CmdReply> Command<Args, Reply> {
         W: Write,
         Port: AsMut<R> + AsMut<W>,
     {
-        let writer = <Port as AsMut<W>>::as_mut(port);
+        let writer: &mut W = port.as_mut();
         writer.write_all(&[self.cmd])?;
         args.send_args(writer)?;
-        Reply::receive_reply(<Port as AsMut<R>>::as_mut(port))
+        let reader: &mut R = port.as_mut();
+        Reply::receive_reply(reader)
     }
 }
 
