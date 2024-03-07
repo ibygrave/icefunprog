@@ -33,19 +33,26 @@ impl Range {
 
     #[instrument]
     fn pages<'a, const N: usize>(&'a self) -> impl Iterator<Item = Range> + '_ {
-        let count_pages = 1 + ((self.len - 1) / N);
-        let end_addr = self.start + self.len;
-        let mut last_tick = Instant::now();
-        (0..count_pages).map(move |page| {
-            let now = Instant::now();
-            if now.duration_since(last_tick) >= REPORT_PERIOD || (1 + page) == count_pages {
-                let progress = format!("{}%", (100 * (1 + page)) / count_pages);
-                info!(progress);
-                last_tick = now;
-            }
-            let start = self.start + (page * N);
-            Range::new(start, min(N, end_addr - start))
-        })
+        fn inner(
+            page_size: usize,
+            page_count: usize,
+            start_addr: usize,
+            end_addr: usize,
+        ) -> impl Iterator<Item = Range> {
+            let mut last_tick = Instant::now();
+            (0..page_count).map(move |page| {
+                let now = Instant::now();
+                if now.duration_since(last_tick) >= REPORT_PERIOD || (1 + page) == page_count {
+                    let progress = format!("{}%", (100 * (1 + page)) / page_count);
+                    info!(progress);
+                    last_tick = now;
+                }
+                let start = start_addr + (page * page_size);
+                Range::new(start, min(page_size, end_addr - start))
+            })
+        }
+        let page_count = 1 + ((self.len - 1) / N);
+        inner(N, page_count, self.start, self.start + self.len)
     }
 }
 
