@@ -80,7 +80,7 @@ impl<Args: CmdArgs, Reply: CmdReply> Command<Args, Reply> {
     }
 
     #[instrument(skip(port))]
-    pub(crate) fn send<Port, R, W>(&self, port: &mut Port, args: &Args) -> Result<Reply, Error>
+    pub(crate) fn run_args<Port, R, W>(&self, port: &mut Port, args: &Args) -> Result<Reply, Error>
     where
         R: Read,
         W: Write,
@@ -90,6 +90,18 @@ impl<Args: CmdArgs, Reply: CmdReply> Command<Args, Reply> {
         writer.write_all(&[self.cmd])?;
         args.send_args(writer)?;
         Reply::receive_reply(<Port as AsMut<R>>::as_mut(port))
+    }
+}
+
+impl<Reply: CmdReply> Command<(), Reply> {
+    #[instrument(skip(port))]
+    pub(crate) fn run<Port, R, W>(&self, port: &mut Port) -> Result<Reply, Error>
+    where
+        R: Read,
+        W: Write,
+        Port: AsMut<R> + AsMut<W>,
+    {
+        self.run_args::<Port, R, W>(port, &())
     }
 }
 

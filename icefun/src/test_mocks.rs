@@ -74,7 +74,7 @@ impl<A: CmdArgs, R: CmdReply> TestCmd<A, R> for Command<A, R> {
     type Error = Error;
     fn test(&self, data: Vec<u8>, args: &A) -> (MockPort, Result<R, Self::Error>) {
         let mut port = MockPort::new(data);
-        let result = self.send::<_, ReadBuf, WriteBuf>(&mut port, args);
+        let result = self.run_args::<_, ReadBuf, WriteBuf>(&mut port, args);
         (port, result)
     }
 }
