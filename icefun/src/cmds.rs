@@ -1,5 +1,5 @@
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Display},
     io::{Read, Write},
     marker::PhantomData,
 };
@@ -131,6 +131,12 @@ impl CmdArgs for ProgData<'_> {
 
 #[derive(Debug)]
 pub(crate) struct GetVerReply(pub u8);
+
+impl Display for GetVerReply {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "v{}", self.0)
+    }
+}
 
 impl CmdReply for GetVerReply {
     fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {

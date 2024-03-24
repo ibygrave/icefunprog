@@ -38,7 +38,7 @@ impl<Port: Read + Write> Device<Port> {
     #[instrument(skip(self))]
     pub fn prepare(mut self) -> Result<DeviceInReset<Port>, Error> {
         let ver = self.getver()?;
-        info!(?ver, "iceFUN version");
+        info!(%ver, "iceFUN version");
         let (reset_reply, dev_in_reset) = self.reset_fpga()?;
         info!(?reset_reply, "Flash ID");
         Ok(dev_in_reset)
