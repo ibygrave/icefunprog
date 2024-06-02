@@ -2,10 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Parser;
-
-mod utils;
-
-use crate::utils::CommonArgs;
+use icefunprog::{CommonArgs, Device, FPGAProg};
 
 /// Programming tool for Devantech iceFUN board.
 #[derive(Parser, Debug)]
@@ -28,8 +25,8 @@ fn main() -> Result<()> {
     args.common.init_logger();
 
     let port = args.common.open_port()?;
-    let mut programmer = icefun::FPGAProg::from_path(args.input, args.common.offset)?;
-    let mut fpga = icefun::Device { port }.prepare()?;
+    let mut programmer = FPGAProg::from_path(args.input, args.common.offset)?;
+    let mut fpga = Device { port }.prepare()?;
     programmer.erase(&mut fpga)?;
     programmer.program(&mut fpga)?;
     if !args.skip_verification {

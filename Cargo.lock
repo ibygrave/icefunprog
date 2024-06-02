@@ -222,19 +222,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "icefun"
-version = "0.3.0"
-dependencies = [
- "tracing",
-]
-
-[[package]]
 name = "icefunprog"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
- "icefun",
  "parse_int",
  "serialport",
  "tracing",

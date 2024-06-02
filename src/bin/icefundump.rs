@@ -2,11 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Parser;
-
-#[path = "../utils.rs"]
-mod utils;
-
-use crate::utils::{parse_addr, CommonArgs};
+use icefunprog::{parse_addr, CommonArgs, Device, FPGADump};
 
 /// Programming tool for Devantech iceFUN board.
 #[derive(Parser, Debug)]
@@ -29,8 +25,8 @@ fn main() -> Result<()> {
     args.common.init_logger();
 
     let port = args.common.open_port()?;
-    let mut fpga = icefun::Device { port }.prepare()?;
-    let mut dumper = icefun::FPGADump::from_path(args.output, args.common.offset, args.size)?;
+    let mut fpga = Device { port }.prepare()?;
+    let mut dumper = FPGADump::from_path(args.output, args.common.offset, args.size)?;
     dumper.dump(&mut fpga)?;
 
     Ok(())

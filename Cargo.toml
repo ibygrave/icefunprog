@@ -1,15 +1,12 @@
 [package]
 name = "icefunprog"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 
 [lints.clippy]
 pedantic = "warn"
 
-[workspace]
-
 [dependencies]
-icefun = { path = "icefun" }
 anyhow = "1.0.82"
 clap = { version = "4.5.4", features = ["derive"] }
 serialport = "4.3.0"
