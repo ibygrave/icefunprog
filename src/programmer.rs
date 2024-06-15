@@ -2,7 +2,7 @@ use std::cmp::min;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::time::{Duration, Instant};
-use std::{fs, path::Path, usize};
+use std::{fs, path::Path};
 
 use tracing::{info, instrument};
 
