@@ -12,4 +12,4 @@ clap = { version = "4.5.4", features = ["derive"] }
 serialport = "4.3.0"
 parse_int = "0.6.0"
 tracing = "0.1.40"
-tracing-subscriber = "0.1.6"
+tracing-subscriber = "0.3.18"

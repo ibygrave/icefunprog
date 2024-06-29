@@ -73,7 +73,7 @@ pub struct CommonArgs {
 impl CommonArgs {
     pub fn init_logger(&self) {
         let subscriber = tracing_subscriber::FmtSubscriber::builder()
-            .with_max_level(self.log_level.clone())
+            .with_max_level(self.log_level)
             .finish();
         tracing::subscriber::set_global_default(subscriber)
             .expect("setting tracing default failed");
