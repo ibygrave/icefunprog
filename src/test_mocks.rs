@@ -1,10 +1,13 @@
 #![cfg(test)]
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::io::{Cursor, Read, Write};
+use std::rc::Rc;
 
 use crate::{
     cmds::{CmdArgs, CmdReply, Command},
     err::Error,
+    serialport::SerialPort,
 };
 
 pub(crate) struct ReadBuf(Cursor<Vec<u8>>);
@@ -27,34 +30,48 @@ impl Write for WriteBuf {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct MockPort {
-    reader: ReadBuf,
-    writer: WriteBuf,
+    reader: Rc<RefCell<ReadBuf>>,
+    writer: Rc<RefCell<WriteBuf>>,
 }
 
 impl MockPort {
     fn new(data: Vec<u8>) -> Self {
         Self {
-            reader: ReadBuf(Cursor::new(data)),
-            writer: WriteBuf(Cursor::new(vec![])),
+            reader: Rc::new(RefCell::new(ReadBuf(Cursor::new(data)))),
+            writer: Rc::new(RefCell::new(WriteBuf(Cursor::new(vec![])))),
         }
     }
+    fn test_port(&self) -> Box<dyn SerialPort> {
+        Box::new(self.clone())
+    }
     pub(crate) fn written(self) -> Vec<u8> {
-        self.writer.0.into_inner()
+        Rc::into_inner(self.writer)
+            .unwrap()
+            .into_inner()
+            .0
+            .into_inner()
     }
 }
 
-impl AsMut<ReadBuf> for MockPort {
-    fn as_mut(&mut self) -> &mut ReadBuf {
-        &mut self.reader
+impl Read for MockPort {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.reader.borrow_mut().read(buf)
     }
 }
 
-impl AsMut<WriteBuf> for MockPort {
-    fn as_mut(&mut self) -> &mut WriteBuf {
-        &mut self.writer
+impl Write for MockPort {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.writer.borrow_mut().write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.writer.borrow_mut().flush()
     }
 }
+
+impl SerialPort for MockPort {}
 
 pub(crate) trait TestCmd<A, R> {
     type Error: Debug;
@@ -73,8 +90,8 @@ pub(crate) trait TestCmd<A, R> {
 impl<A: CmdArgs, R: CmdReply> TestCmd<A, R> for Command<A, R> {
     type Error = Error;
     fn test(&self, data: Vec<u8>, args: &A) -> (MockPort, Result<R, Self::Error>) {
-        let mut port = MockPort::new(data);
-        let result = self.run_args::<_, ReadBuf, WriteBuf>(&mut port, args);
+        let port = MockPort::new(data);
+        let result = self.run_args(&mut port.test_port(), args);
         (port, result)
     }
 }

@@ -1,12 +1,12 @@
 use std::{
     fmt::{Debug, Display},
-    io::{Read, Write},
     marker::PhantomData,
 };
 
 use tracing::instrument;
 
 use crate::err::Error;
+use crate::serialport::SerialPort;
 
 pub(crate) const PAGE_SIZE: usize = 256;
 pub(crate) const CMD_GET_VER: Command<(), GetVerReply> = Command::new(0xb1);
@@ -18,19 +18,19 @@ pub(crate) const CMD_VERIFY_PAGE: Command<ProgData, ProgResult> = Command::new(0
 pub(crate) const CMD_RELEASE_FPGA: Command<(), ()> = Command::new(0xb9);
 
 pub(crate) trait CmdArgs: Debug {
-    fn send_args(&self, writer: &mut impl Write) -> Result<(), Error>;
+    fn send_args(&self, port: &mut Box<dyn SerialPort>) -> Result<(), Error>;
 }
 
 impl CmdArgs for () {
-    fn send_args(&self, _writer: &mut impl Write) -> Result<(), Error> {
+    fn send_args(&self, _port: &mut Box<dyn SerialPort>) -> Result<(), Error> {
         // Sends zero bytes
         Ok(())
     }
 }
 
 impl<const LEN: usize> CmdArgs for [u8; LEN] {
-    fn send_args(&self, writer: &mut impl Write) -> Result<(), Error> {
-        writer.write_all(self)?;
+    fn send_args(&self, port: &mut Box<dyn SerialPort>) -> Result<(), Error> {
+        port.write_all(self)?;
         Ok(())
     }
 }
@@ -39,21 +39,21 @@ pub(crate) trait CmdReply: Debug
 where
     Self: Sized,
 {
-    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error>;
+    fn receive_reply(port: &mut Box<dyn SerialPort>) -> Result<Self, Error>;
 }
 
 impl CmdReply for () {
-    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {
+    fn receive_reply(port: &mut Box<dyn SerialPort>) -> Result<Self, Error> {
         let mut buf = [0u8];
-        reader.read_exact(&mut buf)?;
+        port.read_exact(&mut buf)?;
         Ok(())
     }
 }
 
 impl<const LEN: usize> CmdReply for [u8; LEN] {
-    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {
+    fn receive_reply(port: &mut Box<dyn SerialPort>) -> Result<Self, Error> {
         let mut buf = [0u8; LEN];
-        reader.read_exact(&mut buf)?;
+        port.read_exact(&mut buf)?;
         Ok(buf)
     }
 }
@@ -80,29 +80,21 @@ impl<Args: CmdArgs, Reply: CmdReply> Command<Args, Reply> {
     }
 
     #[instrument(skip(port))]
-    pub(crate) fn run_args<Port, R, W>(&self, port: &mut Port, args: &Args) -> Result<Reply, Error>
-    where
-        R: Read,
-        W: Write,
-        Port: AsMut<R> + AsMut<W>,
-    {
-        let writer: &mut W = port.as_mut();
-        writer.write_all(&[self.cmd])?;
-        args.send_args(writer)?;
-        let reader: &mut R = port.as_mut();
-        Reply::receive_reply(reader)
+    pub(crate) fn run_args(
+        &self,
+        port: &mut Box<dyn SerialPort>,
+        args: &Args,
+    ) -> Result<Reply, Error> {
+        port.write_all(&[self.cmd])?;
+        args.send_args(port)?;
+        Reply::receive_reply(port)
     }
 }
 
 impl<Reply: CmdReply> Command<(), Reply> {
     #[instrument(skip(port))]
-    pub(crate) fn run<Port, R, W>(&self, port: &mut Port) -> Result<Reply, Error>
-    where
-        R: Read,
-        W: Write,
-        Port: AsMut<R> + AsMut<W>,
-    {
-        self.run_args::<Port, R, W>(port, &())
+    pub(crate) fn run(&self, port: &mut Box<dyn SerialPort>) -> Result<Reply, Error> {
+        self.run_args(port, &())
     }
 }
 
@@ -113,17 +105,17 @@ pub(crate) struct ProgData<'a> {
 }
 
 impl CmdArgs for ProgData<'_> {
-    fn send_args(&self, writer: &mut impl Write) -> Result<(), Error> {
+    fn send_args(&self, port: &mut Box<dyn SerialPort>) -> Result<(), Error> {
         let addr_bytes = self.addr.to_be_bytes();
-        writer.write_all(&addr_bytes[5..])?;
+        port.write_all(&addr_bytes[5..])?;
         let (data_seg, pad_len) = if self.data.len() > PAGE_SIZE {
             (&self.data[..PAGE_SIZE], 0)
         } else {
             (self.data, (PAGE_SIZE - self.data.len()))
         };
-        writer.write_all(data_seg)?;
+        port.write_all(data_seg)?;
         if pad_len > 0 {
-            writer.write_all(&vec![0u8; pad_len])?;
+            port.write_all(&vec![0u8; pad_len])?;
         }
         Ok(())
     }
@@ -139,9 +131,9 @@ impl Display for GetVerReply {
 }
 
 impl CmdReply for GetVerReply {
-    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {
+    fn receive_reply(port: &mut Box<dyn SerialPort>) -> Result<Self, Error> {
         let mut buf = [0u8; 2];
-        reader.read_exact(&mut buf)?;
+        port.read_exact(&mut buf)?;
         if buf[0] == 38 {
             Ok(GetVerReply(buf[1]))
         } else {
@@ -154,9 +146,9 @@ impl CmdReply for GetVerReply {
 pub(crate) struct ProgResult;
 
 impl CmdReply for ProgResult {
-    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {
+    fn receive_reply(port: &mut Box<dyn SerialPort>) -> Result<Self, Error> {
         let mut reply = [0u8; 4];
-        reader.read_exact(&mut reply)?;
+        port.read_exact(&mut reply)?;
         if reply[0] == 0 {
             Ok(ProgResult)
         } else {
@@ -176,9 +168,9 @@ pub(crate) struct ReadData {
 }
 
 impl CmdArgs for ReadData {
-    fn send_args(&self, writer: &mut impl Write) -> Result<(), Error> {
+    fn send_args(&self, port: &mut Box<dyn SerialPort>) -> Result<(), Error> {
         let addr_bytes = self.addr.to_be_bytes();
-        writer.write_all(&addr_bytes[5..])?;
+        port.write_all(&addr_bytes[5..])?;
         Ok(())
     }
 }
@@ -187,9 +179,9 @@ impl CmdArgs for ReadData {
 pub(crate) struct ReadResult(pub [u8; PAGE_SIZE]);
 
 impl CmdReply for ReadResult {
-    fn receive_reply(reader: &mut impl Read) -> Result<Self, Error> {
+    fn receive_reply(port: &mut Box<dyn SerialPort>) -> Result<Self, Error> {
         let mut rr = ReadResult([0; PAGE_SIZE]);
-        reader.read_exact(&mut rr.0)?;
+        port.read_exact(&mut rr.0)?;
         Ok(rr)
     }
 }

@@ -5,6 +5,7 @@ mod cmds;
 mod dev;
 mod err;
 mod programmer;
+mod serialport;
 mod test_mocks;
 mod utils;
 

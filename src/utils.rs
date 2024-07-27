@@ -33,9 +33,9 @@ pub fn parse_addr(arg: &str) -> Result<usize> {
     Ok(parse_int::parse::<usize>(arg)?)
 }
 
-pub struct TracePort<Port: Read + Write>(Port);
+pub struct TracePort<Port: SerialPort>(Port);
 
-impl<Port: Read + Write> Read for TracePort<Port> {
+impl<Port: SerialPort> Read for TracePort<Port> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let read_len = self.0.read(buf)?;
         let read_data = &buf[..read_len];
@@ -44,7 +44,7 @@ impl<Port: Read + Write> Read for TracePort<Port> {
     }
 }
 
-impl<Port: Read + Write> Write for TracePort<Port> {
+impl<Port: SerialPort> Write for TracePort<Port> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         trace!(?buf, "write");
         self.0.write(buf)
@@ -54,6 +54,8 @@ impl<Port: Read + Write> Write for TracePort<Port> {
         self.0.flush()
     }
 }
+
+impl<Port: SerialPort> crate::serialport::SerialPort for TracePort<Port> {}
 
 #[derive(clap::Args, Debug)]
 pub struct CommonArgs {
@@ -94,10 +96,10 @@ impl CommonArgs {
         }
     }
 
-    pub fn open_port(&self) -> Result<impl Read + Write> {
+    pub fn open_port(&self) -> Result<Box<dyn crate::serialport::SerialPort>> {
         let mut port = self.find_port()?.open_native()?;
         port.set_flow_control(FlowControl::None)?;
         port.set_timeout(Duration::from_secs(10))?;
-        Ok(TracePort(port))
+        Ok(Box::new(TracePort(port)))
     }
 }
