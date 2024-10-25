@@ -32,7 +32,7 @@ impl Range {
     }
 
     #[instrument]
-    fn pages<'a, const N: usize>(&'a self) -> impl Iterator<Item = Range> + '_ {
+    fn pages<'a, const N: usize>(&'a self) -> impl Iterator<Item = Range> {
         fn inner(
             page_size: usize,
             page_count: usize,
